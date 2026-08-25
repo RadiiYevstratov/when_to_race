@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="ON TRACK">
+  <rect width="16" height="16" fill="#08090a"/>
+  <rect x="0.5" y="0.5" width="15" height="15" fill="none" stroke="#24272d"/>
+  <g fill="#eef0f1">
+    <rect x="2" y="2" width="3" height="3"/>
+    <rect x="8" y="2" width="3" height="3"/>
+    <rect x="5" y="5" width="3" height="3"/>
+    <rect x="11" y="5" width="3" height="3"/>
+    <rect x="2" y="8" width="3" height="3"/>
+    <rect x="8" y="8" width="3" height="3"/>
+    <rect x="5" y="11" width="3" height="3"/>
+  </g>
+  <rect x="11" y="11" width="3" height="3" fill="#35d183"/>
+</svg>

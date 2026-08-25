@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import Link from "next/link";
 
@@ -52,6 +52,14 @@ export const metadata: Metadata = {
     title: "ON TRACK - what motorsport is on, and when",
     description: DESCRIPTION,
   },
+};
+
+// Icons are picked up from the files in this directory - favicon.ico, icon.svg
+// and apple-icon.png - so they are not declared here.
+export const viewport: Viewport = {
+  // Match the board, so a phone does not frame a near-black page in white
+  // chrome.
+  themeColor: "#08090a",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
