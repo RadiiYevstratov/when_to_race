@@ -1,0 +1,673 @@
+# Venue registry. iana_timezone is mandatory and load-bearing: every official
+# source publishes session times in circuit-local time, and a hardcoded UTC
+# offset is wrong on every DST boundary.
+#
+# Deliberately included edge cases, kept as regression fixtures:
+#   america/phoenix          - never observes DST
+#   america/indiana/indianapolis - DST rules changed in 2006, distinct zone
+#   asia/kolkata             - +05:30, non-hour offset
+#   australia/melbourne      - southern hemisphere, DST inverted vs Europe
+#   africa/nairobi           - +03, no DST
+#
+# Coordinates are approximate and used only for the optional map link. The
+# timezone is the field that must be right.
+
+# --- Europe -----------------------------------------------------------------
+[[venue]]
+slug = "monza"
+name = "Autodromo Nazionale Monza"
+country_code = "IT"
+city = "Monza"
+iana_timezone = "Europe/Rome"
+latitude = 45.62
+longitude = 9.28
+
+[[venue]]
+slug = "imola"
+name = "Autodromo Enzo e Dino Ferrari"
+country_code = "IT"
+city = "Imola"
+iana_timezone = "Europe/Rome"
+latitude = 44.34
+longitude = 11.71
+
+[[venue]]
+slug = "mugello"
+name = "Autodromo Internazionale del Mugello"
+country_code = "IT"
+city = "Scarperia"
+iana_timezone = "Europe/Rome"
+latitude = 43.99
+longitude = 11.37
+
+[[venue]]
+slug = "misano"
+name = "Misano World Circuit Marco Simoncelli"
+country_code = "IT"
+city = "Misano Adriatico"
+iana_timezone = "Europe/Rome"
+latitude = 43.96
+longitude = 12.68
+
+[[venue]]
+slug = "silverstone"
+name = "Silverstone Circuit"
+country_code = "GB"
+city = "Silverstone"
+iana_timezone = "Europe/London"
+latitude = 52.07
+longitude = -1.01
+
+[[venue]]
+slug = "spa"
+name = "Circuit de Spa-Francorchamps"
+country_code = "BE"
+city = "Stavelot"
+iana_timezone = "Europe/Brussels"
+latitude = 50.44
+longitude = 5.97
+
+[[venue]]
+slug = "monaco"
+name = "Circuit de Monaco"
+country_code = "MC"
+city = "Monte Carlo"
+iana_timezone = "Europe/Monaco"
+latitude = 43.73
+longitude = 7.42
+
+[[venue]]
+slug = "barcelona"
+name = "Circuit de Barcelona-Catalunya"
+country_code = "ES"
+city = "Montmeló"
+iana_timezone = "Europe/Madrid"
+latitude = 41.57
+longitude = 2.26
+
+[[venue]]
+slug = "madrid"
+name = "Madring"
+country_code = "ES"
+city = "Madrid"
+iana_timezone = "Europe/Madrid"
+latitude = 40.47
+longitude = -3.62
+
+[[venue]]
+slug = "jerez"
+name = "Circuito de Jerez-Ángel Nieto"
+country_code = "ES"
+city = "Jerez de la Frontera"
+iana_timezone = "Europe/Madrid"
+latitude = 36.71
+longitude = -6.03
+
+[[venue]]
+slug = "aragon"
+name = "MotorLand Aragón"
+country_code = "ES"
+city = "Alcañiz"
+iana_timezone = "Europe/Madrid"
+latitude = 41.08
+longitude = -0.20
+
+[[venue]]
+slug = "zandvoort"
+name = "Circuit Zandvoort"
+country_code = "NL"
+city = "Zandvoort"
+iana_timezone = "Europe/Amsterdam"
+latitude = 52.39
+longitude = 4.54
+
+[[venue]]
+slug = "assen"
+name = "TT Circuit Assen"
+country_code = "NL"
+city = "Assen"
+iana_timezone = "Europe/Amsterdam"
+latitude = 52.96
+longitude = 6.52
+
+[[venue]]
+slug = "hungaroring"
+name = "Hungaroring"
+country_code = "HU"
+city = "Mogyoród"
+iana_timezone = "Europe/Budapest"
+latitude = 47.58
+longitude = 19.25
+
+[[venue]]
+slug = "red_bull_ring"
+name = "Red Bull Ring"
+country_code = "AT"
+city = "Spielberg"
+iana_timezone = "Europe/Vienna"
+latitude = 47.22
+longitude = 14.76
+
+[[venue]]
+slug = "le_mans"
+name = "Circuit de la Sarthe"
+country_code = "FR"
+city = "Le Mans"
+iana_timezone = "Europe/Paris"
+latitude = 47.95
+longitude = 0.22
+
+[[venue]]
+slug = "paul_ricard"
+name = "Circuit Paul Ricard"
+country_code = "FR"
+city = "Le Castellet"
+iana_timezone = "Europe/Paris"
+latitude = 43.25
+longitude = 5.79
+
+[[venue]]
+slug = "portimao"
+name = "Autódromo Internacional do Algarve"
+country_code = "PT"
+city = "Portimão"
+iana_timezone = "Europe/Lisbon"
+latitude = 37.23
+longitude = -8.63
+
+[[venue]]
+slug = "brno"
+name = "Automotodrom Brno"
+country_code = "CZ"
+city = "Brno"
+iana_timezone = "Europe/Prague"
+latitude = 49.20
+longitude = 16.45
+
+[[venue]]
+slug = "most"
+name = "Autodrom Most"
+country_code = "CZ"
+city = "Most"
+iana_timezone = "Europe/Prague"
+latitude = 50.52
+longitude = 13.61
+
+[[venue]]
+slug = "cremona"
+name = "Cremona Circuit"
+country_code = "IT"
+city = "San Martino del Lago"
+iana_timezone = "Europe/Rome"
+latitude = 45.10
+longitude = 10.28
+
+[[venue]]
+slug = "estoril"
+name = "Circuito do Estoril"
+country_code = "PT"
+city = "Estoril"
+iana_timezone = "Europe/Lisbon"
+latitude = 38.75
+longitude = -9.39
+
+[[venue]]
+slug = "magny_cours"
+name = "Circuit de Nevers Magny-Cours"
+country_code = "FR"
+city = "Magny-Cours"
+iana_timezone = "Europe/Paris"
+latitude = 46.86
+longitude = 3.16
+
+[[venue]]
+slug = "donington"
+name = "Donington Park"
+country_code = "GB"
+city = "Castle Donington"
+iana_timezone = "Europe/London"
+latitude = 52.83
+longitude = -1.38
+
+[[venue]]
+slug = "sachsenring"
+name = "Sachsenring"
+country_code = "DE"
+city = "Hohenstein-Ernstthal"
+iana_timezone = "Europe/Berlin"
+latitude = 50.79
+longitude = 12.69
+
+[[venue]]
+slug = "balaton_park"
+name = "Balaton Park Circuit"
+country_code = "HU"
+city = "Balatonfőkajár"
+iana_timezone = "Europe/Budapest"
+latitude = 46.99
+longitude = 18.16
+
+[[venue]]
+slug = "valencia"
+name = "Circuit Ricardo Tormo"
+country_code = "ES"
+city = "Cheste"
+iana_timezone = "Europe/Madrid"
+latitude = 39.485
+longitude = -0.627
+
+[[venue]]
+slug = "rally_monte_carlo"
+name = "Rallye Monte-Carlo"
+country_code = "MC"
+city = "Monaco / Gap"
+iana_timezone = "Europe/Monaco"
+latitude = 43.74
+longitude = 7.43
+
+[[venue]]
+slug = "rally_sweden"
+name = "Rally Sweden"
+country_code = "SE"
+city = "Umeå"
+iana_timezone = "Europe/Stockholm"
+latitude = 63.83
+longitude = 20.26
+
+[[venue]]
+slug = "rally_finland"
+name = "Secto Rally Finland"
+country_code = "FI"
+city = "Jyväskylä"
+iana_timezone = "Europe/Helsinki"
+latitude = 62.24
+longitude = 25.75
+
+# --- Americas ---------------------------------------------------------------
+[[venue]]
+slug = "cota"
+name = "Circuit of the Americas"
+country_code = "US"
+city = "Austin, TX"
+iana_timezone = "America/Chicago"
+latitude = 30.13
+longitude = -97.64
+
+[[venue]]
+slug = "miami"
+name = "Miami International Autodrome"
+country_code = "US"
+city = "Miami Gardens, FL"
+iana_timezone = "America/New_York"
+latitude = 25.96
+longitude = -80.24
+
+[[venue]]
+slug = "las_vegas"
+name = "Las Vegas Strip Circuit"
+country_code = "US"
+city = "Las Vegas, NV"
+iana_timezone = "America/Los_Angeles"
+latitude = 36.12
+longitude = -115.17
+
+[[venue]]
+slug = "daytona"
+name = "Daytona International Speedway"
+country_code = "US"
+city = "Daytona Beach, FL"
+iana_timezone = "America/New_York"
+latitude = 29.19
+longitude = -81.07
+
+[[venue]]
+slug = "sebring"
+name = "Sebring International Raceway"
+country_code = "US"
+city = "Sebring, FL"
+iana_timezone = "America/New_York"
+latitude = 27.45
+longitude = -81.35
+
+[[venue]]
+slug = "indianapolis"
+name = "Indianapolis Motor Speedway"
+country_code = "US"
+city = "Speedway, IN"
+iana_timezone = "America/Indiana/Indianapolis"
+latitude = 39.79
+longitude = -86.23
+
+[[venue]]
+slug = "phoenix"
+name = "Phoenix Raceway"
+country_code = "US"
+city = "Avondale, AZ"
+iana_timezone = "America/Phoenix"
+latitude = 33.37
+longitude = -112.31
+
+[[venue]]
+slug = "talladega"
+name = "Talladega Superspeedway"
+country_code = "US"
+city = "Lincoln, AL"
+iana_timezone = "America/Chicago"
+latitude = 33.57
+longitude = -86.07
+
+[[venue]]
+slug = "charlotte"
+name = "Charlotte Motor Speedway"
+country_code = "US"
+city = "Concord, NC"
+iana_timezone = "America/New_York"
+latitude = 35.35
+longitude = -80.68
+
+[[venue]]
+slug = "watkins_glen"
+name = "Watkins Glen International"
+country_code = "US"
+city = "Watkins Glen, NY"
+iana_timezone = "America/New_York"
+latitude = 42.34
+longitude = -76.93
+
+[[venue]]
+slug = "sonoma"
+name = "Sonoma Raceway"
+country_code = "US"
+city = "Sonoma, CA"
+iana_timezone = "America/Los_Angeles"
+latitude = 38.16
+longitude = -122.45
+
+[[venue]]
+slug = "laguna_seca"
+name = "WeatherTech Raceway Laguna Seca"
+country_code = "US"
+city = "Salinas, CA"
+iana_timezone = "America/Los_Angeles"
+latitude = 36.58
+longitude = -121.75
+
+[[venue]]
+slug = "road_america"
+name = "Road America"
+country_code = "US"
+city = "Elkhart Lake, WI"
+iana_timezone = "America/Chicago"
+latitude = 43.80
+longitude = -87.99
+
+[[venue]]
+slug = "mid_ohio"
+name = "Mid-Ohio Sports Car Course"
+country_code = "US"
+city = "Lexington, OH"
+iana_timezone = "America/New_York"
+latitude = 40.69
+longitude = -82.63
+
+[[venue]]
+slug = "detroit"
+name = "Detroit Street Circuit"
+country_code = "US"
+city = "Detroit, MI"
+iana_timezone = "America/Detroit"
+latitude = 42.33
+longitude = -83.04
+
+[[venue]]
+slug = "st_petersburg"
+name = "Streets of St. Petersburg"
+country_code = "US"
+city = "St. Petersburg, FL"
+iana_timezone = "America/New_York"
+latitude = 27.77
+longitude = -82.63
+
+[[venue]]
+slug = "long_beach"
+name = "Streets of Long Beach"
+country_code = "US"
+city = "Long Beach, CA"
+iana_timezone = "America/Los_Angeles"
+latitude = 33.77
+longitude = -118.19
+
+[[venue]]
+slug = "montreal"
+name = "Circuit Gilles-Villeneuve"
+country_code = "CA"
+city = "Montréal"
+iana_timezone = "America/Toronto"
+latitude = 45.50
+longitude = -73.52
+
+[[venue]]
+slug = "toronto"
+name = "Exhibition Place"
+country_code = "CA"
+city = "Toronto"
+iana_timezone = "America/Toronto"
+latitude = 43.63
+longitude = -79.42
+
+[[venue]]
+slug = "mexico_city"
+name = "Autódromo Hermanos Rodríguez"
+country_code = "MX"
+city = "Mexico City"
+iana_timezone = "America/Mexico_City"
+latitude = 19.40
+longitude = -99.09
+
+[[venue]]
+slug = "interlagos"
+name = "Autódromo José Carlos Pace"
+country_code = "BR"
+city = "São Paulo"
+iana_timezone = "America/Sao_Paulo"
+latitude = -23.70
+longitude = -46.70
+
+[[venue]]
+slug = "goiania"
+name = "Autódromo Internacional de Goiânia"
+country_code = "BR"
+city = "Goiânia"
+iana_timezone = "America/Sao_Paulo"
+latitude = -16.70
+longitude = -49.22
+
+[[venue]]
+slug = "termas"
+name = "Autódromo Termas de Río Hondo"
+country_code = "AR"
+city = "Termas de Río Hondo"
+iana_timezone = "America/Argentina/Cordoba"
+latitude = -27.51
+longitude = -64.85
+
+# --- Middle East, Asia, Africa, Oceania -------------------------------------
+[[venue]]
+slug = "sakhir"
+name = "Bahrain International Circuit"
+country_code = "BH"
+city = "Sakhir"
+iana_timezone = "Asia/Bahrain"
+latitude = 26.03
+longitude = 50.51
+
+[[venue]]
+slug = "jeddah"
+name = "Jeddah Corniche Circuit"
+country_code = "SA"
+city = "Jeddah"
+iana_timezone = "Asia/Riyadh"
+latitude = 21.63
+longitude = 39.10
+
+[[venue]]
+slug = "lusail"
+name = "Lusail International Circuit"
+country_code = "QA"
+city = "Lusail"
+iana_timezone = "Asia/Qatar"
+latitude = 25.49
+longitude = 51.45
+
+[[venue]]
+slug = "yas_marina"
+name = "Yas Marina Circuit"
+country_code = "AE"
+city = "Abu Dhabi"
+iana_timezone = "Asia/Dubai"
+latitude = 24.47
+longitude = 54.60
+
+[[venue]]
+slug = "baku"
+name = "Baku City Circuit"
+country_code = "AZ"
+city = "Baku"
+iana_timezone = "Asia/Baku"
+latitude = 40.37
+longitude = 49.85
+
+[[venue]]
+slug = "suzuka"
+name = "Suzuka International Racing Course"
+country_code = "JP"
+city = "Suzuka"
+iana_timezone = "Asia/Tokyo"
+latitude = 34.84
+longitude = 136.54
+
+[[venue]]
+slug = "motegi"
+name = "Mobility Resort Motegi"
+country_code = "JP"
+city = "Motegi"
+iana_timezone = "Asia/Tokyo"
+latitude = 36.53
+longitude = 140.23
+
+[[venue]]
+slug = "fuji"
+name = "Fuji Speedway"
+country_code = "JP"
+city = "Oyama"
+iana_timezone = "Asia/Tokyo"
+latitude = 35.37
+longitude = 138.93
+
+[[venue]]
+slug = "shanghai"
+name = "Shanghai International Circuit"
+country_code = "CN"
+city = "Shanghai"
+iana_timezone = "Asia/Shanghai"
+latitude = 31.34
+longitude = 121.22
+
+[[venue]]
+slug = "singapore"
+name = "Marina Bay Street Circuit"
+country_code = "SG"
+city = "Singapore"
+iana_timezone = "Asia/Singapore"
+latitude = 1.29
+longitude = 103.86
+
+[[venue]]
+slug = "sepang"
+name = "Sepang International Circuit"
+country_code = "MY"
+city = "Sepang"
+iana_timezone = "Asia/Kuala_Lumpur"
+latitude = 2.76
+longitude = 101.74
+
+[[venue]]
+slug = "buriram"
+name = "Chang International Circuit"
+country_code = "TH"
+city = "Buriram"
+iana_timezone = "Asia/Bangkok"
+latitude = 14.95
+longitude = 103.09
+
+[[venue]]
+slug = "buddh"
+name = "Buddh International Circuit"
+country_code = "IN"
+city = "Greater Noida"
+iana_timezone = "Asia/Kolkata"
+latitude = 28.35
+longitude = 77.53
+
+[[venue]]
+slug = "mandalika"
+name = "Pertamina Mandalika International Circuit"
+country_code = "ID"
+city = "Lombok"
+iana_timezone = "Asia/Makassar"
+latitude = -8.90
+longitude = 116.30
+
+[[venue]]
+slug = "safari_rally"
+name = "Safari Rally Kenya"
+country_code = "KE"
+city = "Naivasha"
+iana_timezone = "Africa/Nairobi"
+latitude = -0.72
+longitude = 36.43
+
+[[venue]]
+slug = "kyalami"
+name = "Kyalami Grand Prix Circuit"
+country_code = "ZA"
+city = "Midrand"
+iana_timezone = "Africa/Johannesburg"
+latitude = -25.99
+longitude = 28.07
+
+[[venue]]
+slug = "melbourne"
+name = "Albert Park Circuit"
+country_code = "AU"
+city = "Melbourne"
+iana_timezone = "Australia/Melbourne"
+latitude = -37.85
+longitude = 144.97
+
+[[venue]]
+slug = "phillip_island"
+name = "Phillip Island Grand Prix Circuit"
+country_code = "AU"
+city = "Phillip Island"
+iana_timezone = "Australia/Melbourne"
+latitude = -38.50
+longitude = 145.23
+
+[[venue]]
+slug = "bathurst"
+name = "Mount Panorama Circuit"
+country_code = "AU"
+city = "Bathurst"
+iana_timezone = "Australia/Sydney"
+latitude = -33.45
+longitude = 149.55
+
+[[venue]]
+slug = "adelaide"
+name = "Adelaide Street Circuit"
+country_code = "AU"
+city = "Adelaide"
+iana_timezone = "Australia/Adelaide"
+latitude = -34.93
+longitude = 138.62

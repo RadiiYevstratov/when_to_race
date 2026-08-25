@@ -1,0 +1,27 @@
+[Unit]
+Description=Motorsport schedule scrape
+Documentation=file:///opt/motorsport/docs/sources.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=motorsport
+WorkingDirectory=/opt/motorsport
+EnvironmentFile=/etc/motorsport/scraper.env
+ExecStart=/opt/motorsport/.venv/bin/python -m scrapers.run --series all
+
+# One dead source must not block the others, and the runner already handles
+# that internally. A non-zero exit means at least one series failed, which is
+# worth an alert but not a restart loop.
+Restart=no
+TimeoutStartSec=1800
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/motorsport/snapshots
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,45 @@
+name: scrape
+
+# The runner is a plain CLI with no platform coupling, so this workflow and the
+# systemd timer in deploy/ invoke it identically.
+
+on:
+  schedule:
+    # Every six hours. Full calendars change slowly; there is no case for more.
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      series:
+        description: "Series code, comma-separated, or 'all'"
+        default: "all"
+      dry_run:
+        type: boolean
+        default: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+
+      - name: Scrape
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python -m scrapers.run \
+            --series "${{ inputs.series || 'all' }}" \
+            ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      # A parser that breaks needs its input. Snapshots are not committed, so
+      # keep them as artefacts when a run fails.
+      - name: Keep snapshots from a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshots-${{ github.run_id }}
+          path: snapshots/
+          retention-days: 14

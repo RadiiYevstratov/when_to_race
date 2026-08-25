@@ -1,0 +1,263 @@
+# Series registry. Adding a championship = one entry here + one module in
+# scrapers/sources/. No schema change, no frontend change.
+#
+# accent_color drives series identity in the UI. Chosen for legibility against
+# both the light and dark board backgrounds, and to stay distinguishable from
+# each other for the most common forms of colour blindness.
+#
+# source.adapter maps to a module in scrapers/sources/.
+# source.status: "live" = verified endpoint, "unverified" = discovery not yet done.
+#   The runner refuses to run an unverified source without --allow-unverified.
+
+[[series]]
+code = "f1"
+name = "FIA Formula One World Championship"
+short_name = "Formula 1"
+accent_color = "#E8112D"
+sort_order = 10
+[series.source]
+adapter = "f1"
+status = "live"
+url = "https://f1.vidmar.net/calendar.ics"
+discovery_notes = "docs/sources.md#formula-1"
+[[series.categories]]
+code = "f1"
+name = "FIA Formula One World Championship"
+short_name = "F1"
+is_headline = true
+sort_order = 10
+[[series.categories]]
+code = "f2"
+name = "FIA Formula 2 Championship"
+short_name = "F2"
+sort_order = 20
+[[series.categories]]
+code = "f3"
+name = "FIA Formula 3 Championship"
+short_name = "F3"
+sort_order = 30
+[[series.categories]]
+code = "f1a"
+name = "F1 Academy"
+short_name = "F1 Academy"
+sort_order = 40
+
+[[series]]
+code = "wec"
+name = "FIA World Endurance Championship"
+short_name = "WEC"
+accent_color = "#2E9E5B"
+sort_order = 20
+[series.source]
+adapter = "wec"
+# fiawec.com per-race pages, parsed from their schema.org JSON-LD (no session
+# JSON API exists). Two-stage: season page -> race pages. Same class of
+# personal-use Terms as the Dorna sources; set live 2026-08-23 on that basis.
+# NOTE: the feed stamps every time with the CMS's own offset, not the circuit's;
+# the adapter treats the wall-clock as circuit-local. See docs/sources.md#wec.
+status = "live"
+url = "https://www.fiawec.com"
+discovery_notes = "docs/sources.md#wec"
+# Hypercar and LMGT3 run the same sessions, so they are one category. Splitting
+# them would duplicate every row in the weekend view for no information gain.
+[[series.categories]]
+code = "wec"
+name = "FIA World Endurance Championship"
+short_name = "WEC"
+is_headline = true
+sort_order = 10
+
+[[series]]
+code = "wrc"
+name = "FIA World Rally Championship"
+short_name = "WRC"
+accent_color = "#C86A00"
+sort_order = 30
+[series.source]
+adapter = "wrc"
+status = "unverified"
+discovery_notes = "docs/sources.md#wrc"
+[[series.categories]]
+code = "wrc"
+name = "FIA World Rally Championship"
+short_name = "WRC"
+is_headline = true
+sort_order = 10
+[[series.categories]]
+code = "wrc2"
+name = "WRC2"
+short_name = "WRC2"
+sort_order = 20
+[[series.categories]]
+code = "wrc3"
+name = "WRC3"
+short_name = "WRC3"
+sort_order = 30
+[[series.categories]]
+code = "jwrc"
+name = "Junior WRC"
+short_name = "Junior WRC"
+sort_order = 40
+
+[[series]]
+code = "motogp"
+name = "MotoGP World Championship"
+short_name = "MotoGP"
+accent_color = "#C4003C"
+sort_order = 40
+[series.source]
+adapter = "motogp"
+# Endpoint discovered and the parser is written and tested (see docs/sources.md
+# #motogp). Set live 2026-08-23: the owner accepted the Terms-of-Use risk
+# (motogp.com restricts use to "personal purposes"). Documented in sources.md.
+status = "live"
+url = "https://api.motogp.pulselive.com/motogp/v1/events?seasonYear={season}"
+discovery_notes = "docs/sources.md#motogp"
+[[series.categories]]
+code = "motogp"
+name = "MotoGP"
+short_name = "MotoGP"
+is_headline = true
+sort_order = 10
+[[series.categories]]
+code = "moto2"
+name = "Moto2"
+short_name = "Moto2"
+sort_order = 20
+[[series.categories]]
+code = "moto3"
+name = "Moto3"
+short_name = "Moto3"
+sort_order = 30
+[[series.categories]]
+code = "motoe"
+name = "MotoE"
+short_name = "MotoE"
+sort_order = 40
+
+[[series]]
+code = "wsbk"
+name = "FIM Superbike World Championship"
+short_name = "WorldSBK"
+accent_color = "#0B6FBF"
+sort_order = 50
+[series.source]
+adapter = "wsbk"
+# worldsbk.com's own JSON:API (api.wsbk.pulselive.com). Same publisher (Dorna)
+# and the same personal-use Terms as MotoGP; set live 2026-08-23 on that basis.
+# source.url is the API base; the adapter builds rounds/sessions paths on it.
+status = "live"
+url = "https://api.wsbk.pulselive.com/wsbk-events/v1"
+discovery_notes = "docs/sources.md#worldsbk"
+[[series.categories]]
+code = "wsbk"
+name = "FIM Superbike World Championship"
+short_name = "WorldSBK"
+is_headline = true
+sort_order = 10
+[[series.categories]]
+code = "wssp"
+name = "FIM Supersport World Championship"
+short_name = "WorldSSP"
+sort_order = 20
+# WorldSSP300 ended after 2024; from 2026 the support classes are World Sportbike
+# (SPB) and the Women's championship (WCR). YR3EC (a Yamaha one-make cup) is left
+# untracked, like MotoGP's Baggers.
+[[series.categories]]
+code = "wspb"
+name = "FIM World Sportbike Championship"
+short_name = "WorldSPB"
+sort_order = 30
+[[series.categories]]
+code = "wcr"
+name = "FIM Women's Circuit Racing World Championship"
+short_name = "WorldWCR"
+sort_order = 40
+
+[[series]]
+code = "imsa"
+name = "IMSA SportsCar Championship"
+short_name = "IMSA"
+accent_color = "#7A4FBF"
+sort_order = 60
+[series.source]
+adapter = "imsa"
+status = "unverified"
+discovery_notes = "docs/sources.md#imsa"
+[[series.categories]]
+code = "imsa_wtsc"
+name = "WeatherTech SportsCar Championship"
+short_name = "WeatherTech"
+is_headline = true
+sort_order = 10
+[[series.categories]]
+code = "imsa_mpc"
+name = "Michelin Pilot Challenge"
+short_name = "Pilot Challenge"
+sort_order = 20
+
+[[series]]
+code = "indycar"
+name = "NTT IndyCar Series"
+short_name = "IndyCar"
+accent_color = "#0C7C8C"
+sort_order = 70
+[series.source]
+adapter = "indycar"
+status = "unverified"
+discovery_notes = "docs/sources.md#indycar"
+[[series.categories]]
+code = "indycar"
+name = "NTT IndyCar Series"
+short_name = "IndyCar"
+is_headline = true
+sort_order = 10
+[[series.categories]]
+code = "indynxt"
+name = "Indy NXT"
+short_name = "Indy NXT"
+sort_order = 20
+
+[[series]]
+code = "nascar"
+name = "NASCAR"
+short_name = "NASCAR"
+accent_color = "#B08A00"
+sort_order = 80
+[series.source]
+adapter = "nascar"
+status = "unverified"
+discovery_notes = "docs/sources.md#nascar"
+[[series.categories]]
+code = "nascar_cup"
+name = "NASCAR Cup Series"
+short_name = "Cup"
+is_headline = true
+sort_order = 10
+[[series.categories]]
+code = "nascar_xfinity"
+name = "NASCAR Xfinity Series"
+short_name = "Xfinity"
+sort_order = 20
+[[series.categories]]
+code = "nascar_truck"
+name = "NASCAR Craftsman Truck Series"
+short_name = "Trucks"
+sort_order = 30
+
+# ---------------------------------------------------------------------------
+# Validation floors. A healthy event for this series has at least this many
+# sessions across all categories. Below the floor the run is treated as a
+# parser failure, not as a thin race weekend. Deliberately conservative: the
+# job is to catch "parser returned 1 session for a Grand Prix", not to police
+# unusual calendars.
+# ---------------------------------------------------------------------------
+[validation.min_sessions_per_event]
+f1 = 5
+wec = 3
+wrc = 3
+motogp = 5
+wsbk = 4
+imsa = 2
+indycar = 2
+nascar = 1

@@ -1,0 +1,42 @@
+{
+ "data": [
+  {
+   "type": "rounds",
+   "id": "2026-ARA",
+   "attributes": {
+    "name": "MotorLand Aragon",
+    "brief_description": "Aragon",
+    "source_id": "ARA",
+    "sequence_order": 6,
+    "status": "FINISHED"
+   },
+   "relationships": {
+    "circuit": {
+     "data": {
+      "type": "circuits",
+      "id": "ARAGO"
+     }
+    }
+   }
+  },
+  {
+   "type": "rounds",
+   "id": "2026-POR",
+   "attributes": {
+    "name": "Autódromo Internacional do Algarve",
+    "brief_description": "Portimao",
+    "source_id": "POR",
+    "sequence_order": 2,
+    "status": "FINISHED"
+   },
+   "relationships": {
+    "circuit": {
+     "data": {
+      "type": "circuits",
+      "id": "PORTI"
+     }
+    }
+   }
+  }
+ ]
+}

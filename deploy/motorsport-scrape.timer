@@ -1,0 +1,11 @@
+[Unit]
+Description=Scrape motorsport calendars every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:00:00 UTC
+# Spread load off the hour so we are not hitting ten sites at exactly :00.
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,16 @@
+# Scraper runtime.
+#
+# The parse / normalize / validate / diff core is stdlib-only on purpose: it can
+# be tested anywhere, with no install step. These are the I/O edges.
+
+httpx==0.28.1          # fetch
+selectolax==0.3.27     # HTML parsing, only for sources with no structured feed
+psycopg[binary]==3.2.3 # upsert
+
+# playwright is intentionally absent. It is a documented last resort for a
+# JS-rendered source; add it per-source with a note in docs/sources.md, not as a
+# baseline dependency.
+
+# Windows has no system timezone database, so zoneinfo needs this from PyPI.
+# Harmless on Linux and macOS, where it simply defers to the system tzdata.
+tzdata>=2024.1

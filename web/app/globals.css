@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * ON TRACK - the design.
+ *
+ * A departure board, not a broadcaster's homepage: a deep, near-black neutral
+ * surface with restrained depth, technical typography and prominent times.
+ *
+ * Colour carries two kinds of meaning and nothing else:
+ *   - series identity, as a 3px rule at the left edge of a row
+ *   - session state, borrowed from the board vernacular:
+ *       green  = running now
+ *       amber  = provisional or delayed
+ *       red    = cancelled
+ * Everything else is ink on board. Detail, not decoration.
+ */
+
+:root {
+  --board: #08090a;
+  --panel: #121317;
+  --rule: #24272d;
+  --ink: #eef0f1;
+  --ink-muted: #8a9298;
+  --ink-faint: #565d62;
+
+  --live: #35d183;
+  --provisional: #e0a32e;
+  --cancelled: #f0716a;
+
+  color-scheme: dark;
+}
+
+/* Page depth: one faint cool glow from the top, nothing more. */
+body {
+  background:
+    radial-gradient(1100px 520px at 50% -8%, #101318 0%, rgba(8, 9, 10, 0) 62%),
+    var(--board);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Header reads as a machined bar rather than a flat block. */
+header {
+  background: linear-gradient(180deg, #111318 0%, #0c0d10 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+/* --- Circuit art ---------------------------------------------------------
+ * Think of a card as two halves: text on the left, artwork on the right. The
+ * traced outline is centred inside that right half - the SVG's own
+ * preserveAspectRatio does the centring once the box is the right shape.
+ * A venue with no traced map renders no art at all, never a stand-in.
+ * ------------------------------------------------------------------------- */
+.circuit-art {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: 78%;
+  padding: 0 2.5%;
+  box-sizing: border-box;
+  transform: translateY(-50%);
+  color: var(--ink);
+  opacity: 0.09;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.has-circuit-art > *:not(.circuit-art) {
+  position: relative; /* keep the text above the outline */
+  z-index: 1;
+}
+
+/* --- Next Up hero -------------------------------------------------------- */
+.nextup-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #15171c 0%, #0f1115 100%);
+  border-color: #282c33;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 48px -34px rgba(0, 0, 0, 0.85);
+}
+
+/* --- Schedule rows ------------------------------------------------------- */
+.board-row {
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+  margin-left: -0.5rem;
+  margin-right: -0.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.board-row:hover {
+  background-color: rgba(255, 255, 255, 0.025);
+  border-radius: 2px;
+}
+
+/* Times are what the eye should catch, so they carry full ink weight and a
+   hairline rule separating them from the session - the departure-board look. */
+.board-time,
+time.text-time {
+  color: var(--ink);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.board-time {
+  width: 5.25rem;
+  margin-right: 0.75rem;
+  padding-right: 0.75rem;
+  border-right: 1px solid var(--rule);
+}
+
+/* Times are read in columns, so they must not reflow between rows. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+/* --- Live state ----------------------------------------------------------
+ * Confident but small: a quiet accent glow and the one animated element on
+ * the page, never a glowing hero.
+ * ------------------------------------------------------------------------- */
+.live-dot {
+  box-shadow: 0 0 8px 0 var(--live);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
