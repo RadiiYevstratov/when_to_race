@@ -80,7 +80,7 @@ export default async function HomePage({
               <span
                 aria-hidden="true"
                 className="h-5 w-[3px]"
-                style={{ backgroundColor: next.accentColor }}
+                style={{ backgroundColor: next.categoryAccentColor }}
               />
               <span className="font-mono text-xs text-ink-muted">{next.categoryShortName}</span>
               <span className="font-mono text-xs text-ink-faint">

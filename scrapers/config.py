@@ -29,6 +29,9 @@ class CategoryConfig:
     short_name: str
     is_headline: bool = False
     sort_order: int = 100
+    # None inherits the parent series colour, which is what a headline class
+    # wants: Formula 1 within Formula 1 has no separate identity to state.
+    accent_color: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,18 @@ def _load_toml(path: Path) -> dict:
         return tomllib.load(handle)
 
 
+def _category_color(series_code: str, cat: dict) -> Optional[str]:
+    color = cat.get("accent_color")
+    if color is None:
+        return None
+    if not (color.startswith("#") and len(color) == HEX_COLOR_LENGTH):
+        raise ConfigError(
+            f"series {series_code!r} category {cat['code']!r}: "
+            f"accent_color must be #rrggbb, got {color!r}"
+        )
+    return color
+
+
 @lru_cache(maxsize=1)
 def load_series(config_dir: Optional[str] = None) -> dict[str, SeriesConfig]:
     directory = Path(config_dir) if config_dir else CONFIG_DIR
@@ -114,6 +129,7 @@ def load_series(config_dir: Optional[str] = None) -> dict[str, SeriesConfig]:
                 short_name=cat["short_name"],
                 is_headline=cat.get("is_headline", False),
                 sort_order=cat.get("sort_order", 100),
+                accent_color=_category_color(code, cat),
             )
             for cat in entry.get("categories", [])
         )

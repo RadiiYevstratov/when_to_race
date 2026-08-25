@@ -34,6 +34,8 @@ const STORAGE_KEY = "ms_series";
 export interface CategoryOption {
   code: string;
   shortName: string;
+  /** The class's own colour, already resolved against its series. */
+  accentColor: string;
   /** Zero means seeded but never run - a discontinued class, or one not yet started. */
   sessionCount: number;
 }
@@ -151,10 +153,17 @@ export function SeriesFilter({
                       type="button"
                       onClick={() => commit(toggleCategory(selected, group, category.code))}
                       aria-pressed={on}
-                      className={`border px-2 py-1 font-mono text-xs ${
+                      className={`flex items-center gap-1.5 border px-2 py-1 font-mono text-xs ${
                         on ? "border-ink text-ink" : "border-rule text-ink-faint hover:text-ink"
                       }`}
                     >
+                      {/* The same colour this class's rows carry on the board,
+                          so the chip and the schedule read as one thing. */}
+                      <span
+                        aria-hidden="true"
+                        className={`inline-block h-2 w-2 shrink-0 ${on ? "" : "opacity-60"}`}
+                        style={{ backgroundColor: category.accentColor }}
+                      />
                       {category.shortName}
                     </button>
                   );

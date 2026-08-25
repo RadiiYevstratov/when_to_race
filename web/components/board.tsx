@@ -103,7 +103,7 @@ export function BoardRow({
       <span
         aria-hidden="true"
         className="mt-1 h-3.5 w-[3px] shrink-0"
-        style={{ backgroundColor: session.accentColor }}
+        style={{ backgroundColor: session.categoryAccentColor }}
       />
 
       <span className="w-20 shrink-0 font-mono text-xs text-ink-muted">

@@ -42,17 +42,24 @@ code = "f2"
 name = "FIA Formula 2 Championship"
 short_name = "F2"
 sort_order = 20
+# Formula 2's own brand blue.
+accent_color = "#0096D6"
 [[series.categories]]
 code = "f3"
 name = "FIA Formula 3 Championship"
 short_name = "F3"
 sort_order = 30
+# Formula 3's own brand orange.
+accent_color = "#E35205"
 [[series.categories]]
 code = "f1a"
 name = "F1 Academy"
 short_name = "F1 Academy"
 sort_order = 40
 
+# F1 Academy rebranded to electric purple for 2026. The hue is
+# theirs; the exact value is ours, since they publish no hex.
+accent_color = "#A855F7"
 [[series]]
 code = "wec"
 name = "FIA World Endurance Championship"
@@ -135,11 +142,16 @@ code = "moto2"
 name = "Moto2"
 short_name = "Moto2"
 sort_order = 20
+# Not a brand colour - Dorna does not publish one. Chosen to sit
+# apart from MotoGP's crimson on the same weekend.
+accent_color = "#00A3A3"
 [[series.categories]]
 code = "moto3"
 name = "Moto3"
 short_name = "Moto3"
 sort_order = 30
+# As Moto2: chosen for separation, not taken from a brand.
+accent_color = "#E8B10A"
 [[series.categories]]
 code = "motoe"
 name = "MotoE"
@@ -174,17 +186,23 @@ sort_order = 20
 # WorldSSP300 ended after 2024; from 2026 the support classes are World Sportbike
 # (SPB) and the Women's championship (WCR). YR3EC (a Yamaha one-make cup) is left
 # untracked, like MotoGP's Baggers.
+# Chosen for separation from WorldSBK's blue on the same weekend.
+accent_color = "#17B26A"
 [[series.categories]]
 code = "wspb"
 name = "FIM World Sportbike Championship"
 short_name = "WorldSPB"
 sort_order = 30
+# Chosen for separation.
+accent_color = "#F79009"
 [[series.categories]]
 code = "wcr"
 name = "FIM Women's Circuit Racing World Championship"
 short_name = "WorldWCR"
 sort_order = 40
 
+# Chosen for separation.
+accent_color = "#EE46BC"
 [[series]]
 code = "imsa"
 name = "IMSA SportsCar Championship"

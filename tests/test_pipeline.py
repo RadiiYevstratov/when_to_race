@@ -52,6 +52,58 @@ class ConfigTests(unittest.TestCase):
         codes = {category.code for category in load_series()["f1"].categories}
         self.assertEqual(codes, {"f1", "f2", "f3", "f1a"})
 
+    def test_a_class_that_shares_a_weekend_has_its_own_colour(self):
+        """Four championships on one weekend, all painted the series red, said
+        nothing about which row was which."""
+        categories = {c.code: c for c in load_series()["f1"].categories}
+        self.assertEqual(categories["f2"].accent_color, "#0096D6")
+        self.assertEqual(categories["f3"].accent_color, "#E35205")
+
+    def test_a_headline_class_inherits_rather_than_repeats(self):
+        # Formula 1 within Formula 1 has no separate identity to state, and
+        # copying the value would mean changing a series colour in two places.
+        for code, series in load_series().items():
+            with self.subTest(series=code):
+                self.assertIsNone(series.headline_category.accent_color)
+
+    def test_every_declared_class_colour_is_a_hex_triplet(self):
+        for code, series in load_series().items():
+            for category in series.categories:
+                if category.accent_color is None:
+                    continue
+                with self.subTest(series=code, category=category.code):
+                    self.assertRegex(category.accent_color, r"^#[0-9A-Fa-f]{6}$")
+
+    def test_a_malformed_class_colour_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "series.toml"
+            path.write_text(
+                """
+[[series]]
+code = "f1"
+name = "Formula One"
+short_name = "F1"
+accent_color = "#E8112D"
+[series.source]
+adapter = "f1"
+[[series.categories]]
+code = "f1"
+name = "Formula One"
+short_name = "F1"
+is_headline = true
+[[series.categories]]
+code = "f2"
+name = "Formula 2"
+short_name = "F2"
+accent_color = "blue"
+""",
+                encoding="utf-8",
+            )
+            load_series.cache_clear()
+            with self.assertRaises(ConfigError):
+                load_series(directory)
+            load_series.cache_clear()
+
     def test_no_venue_is_configured_with_utc(self):
         # A UTC "circuit-local" zone is always a data-entry mistake.
         for slug, venue in load_venues().items():

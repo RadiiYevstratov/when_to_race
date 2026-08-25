@@ -82,6 +82,8 @@ export interface SessionRow {
   categoryCode: string;
   categoryShortName: string;
   categorySortOrder: number;
+  /** The class's own colour, falling back to the championship's. */
+  categoryAccentColor: string;
   seriesCode: string;
   seriesName: string;
   seriesShortName: string;
@@ -118,6 +120,9 @@ const sessionSelection = {
   categoryCode: categories.code,
   categoryShortName: categories.shortName,
   categorySortOrder: categories.sortOrder,
+  // A class with no colour of its own wears the championship's. Resolved here
+  // rather than in the component so every surface inherits identically.
+  categoryAccentColor: sql<string>`coalesce(${categories.accentColor}, ${series.accentColor})`,
   seriesCode: series.code,
   seriesName: series.name,
   seriesShortName: series.shortName,
@@ -394,6 +399,7 @@ export async function getSeriesCatalogue() {
       categoryCode: categories.code,
       categoryShortName: categories.shortName,
       categorySortOrder: categories.sortOrder,
+      categoryAccentColor: sql<string>`coalesce(${categories.accentColor}, ${series.accentColor})`,
       sessionCount: sql<number>`count(${sessions.id})`.mapWith(Number),
     })
     .from(series)
@@ -412,6 +418,7 @@ export async function getSeriesCatalogue() {
       categories.code,
       categories.shortName,
       categories.sortOrder,
+      categories.accentColor,
     )
     .orderBy(asc(series.sortOrder), asc(categories.sortOrder));
 
@@ -422,7 +429,12 @@ export async function getSeriesCatalogue() {
       shortName: string;
       accentColor: string;
       lastSuccessfulScrape: Date | null;
-      categories: { code: string; shortName: string; sessionCount: number }[];
+      categories: {
+        code: string;
+        shortName: string;
+        accentColor: string;
+        sessionCount: number;
+      }[];
     }
   >();
 
@@ -441,6 +453,7 @@ export async function getSeriesCatalogue() {
     group.categories.push({
       code: row.categoryCode,
       shortName: row.categoryShortName,
+      accentColor: row.categoryAccentColor,
       sessionCount: row.sessionCount,
     });
   }

@@ -72,6 +72,8 @@ export const categories = pgTable(
     name: text("name").notNull(),
     shortName: text("short_name").notNull(),
     isHeadline: boolean("is_headline").notNull().default(false),
+    /** Null inherits the parent series colour. */
+    accentColor: text("accent_color"),
     sortOrder: integer("sort_order").notNull().default(100),
   },
   (table) => ({

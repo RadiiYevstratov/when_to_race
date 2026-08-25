@@ -79,13 +79,15 @@ def seed(database_url: str, dry_run: bool = False) -> dict[str, int]:
                 for category in series.categories:
                     cursor.execute(
                         """
-                        INSERT INTO categories (series_id, code, name, short_name, is_headline, sort_order)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        INSERT INTO categories
+                            (series_id, code, name, short_name, is_headline, sort_order, accent_color)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (series_id, code) DO UPDATE
                            SET name = EXCLUDED.name,
                                short_name = EXCLUDED.short_name,
                                is_headline = EXCLUDED.is_headline,
                                sort_order = EXCLUDED.sort_order,
+                               accent_color = EXCLUDED.accent_color,
                                updated_at = now()
                         """,
                         (
@@ -95,6 +97,7 @@ def seed(database_url: str, dry_run: bool = False) -> dict[str, int]:
                             category.short_name,
                             category.is_headline,
                             category.sort_order,
+                            category.accent_color,
                         ),
                     )
                     counts["categories"] += 1

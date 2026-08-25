@@ -70,7 +70,7 @@ Against a real database:
 
 ```bash
 pip install -r requirements.txt
-psql "$DATABASE_URL" -f db/migrations/0001_init.sql
+for f in db/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
 python -m db.seed
 python -m scrapers.run --series f1
 ```
