@@ -25,9 +25,21 @@ export async function generateMetadata({ params }: PageProps) {
   const { series, season, slug } = await params;
   const weekend = await getWeekend(series, Number(season), slug);
   if (!weekend) return { title: "Weekend not found" };
+
+  const event = weekend.event;
+  const title = `${event.eventName} ${event.season} - session times`;
+  const where = event.venueCity ? `${event.venueName}, ${event.venueCity}` : event.venueName;
+  const description =
+    `Every ${event.seriesShortName} session at the ${event.eventName}: practice, ` +
+    `qualifying and race times at ${where}, converted to your own timezone.`;
+  const path = `/weekend/${series}/${season}/${slug}`;
+
   return {
-    title: `${weekend.event.eventName} - session times`,
-    description: `Every session at the ${weekend.event.eventName}, in your timezone.`,
+    title,
+    description,
+    alternates: { canonical: path },
+    openGraph: { type: "article", title, description, url: path, siteName: "ON TRACK" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 

@@ -14,7 +14,16 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Subscribe to the calendar",
-  description: "Add session times to your phone calendar and keep them in sync.",
+  description:
+    "Add every Formula 1, MotoGP, WorldSBK and FIA WEC session to your phone " +
+    "calendar and keep it in sync automatically.",
+  alternates: { canonical: "/subscribe" },
+  openGraph: {
+    title: "Subscribe to the calendar",
+    description: "Add session times to your phone calendar and keep them in sync.",
+    url: "/subscribe",
+    siteName: "ON TRACK",
+  },
 };
 
 export default async function SubscribePage() {

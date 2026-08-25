@@ -17,7 +17,16 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Season calendar",
-  description: "Every round of the season, in your timezone.",
+  description:
+    "Every round of the Formula 1, MotoGP, WorldSBK and FIA WEC seasons, with " +
+    "dates and circuits, in your own timezone.",
+  alternates: { canonical: "/calendar" },
+  openGraph: {
+    title: "Season calendar",
+    description: "Every round of the season, in your own timezone.",
+    url: "/calendar",
+    siteName: "ON TRACK",
+  },
 };
 
 interface PageProps {

@@ -6,6 +6,7 @@ import { TimezoneBar } from "../components/timezone-bar.tsx";
 import { readPreferences } from "../lib/preferences.ts";
 import { getAllSeries } from "../lib/queries.ts";
 import { SeriesFilter } from "../components/series-filter.tsx";
+import { SITE_URL } from "../lib/site.ts";
 
 import "./globals.css";
 
@@ -22,10 +23,35 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+const DESCRIPTION =
+  "Every practice, qualifying and race session from Formula 1, MotoGP, WorldSBK " +
+  "and the FIA WEC, converted to your own timezone. One board for the whole weekend.";
+
 export const metadata: Metadata = {
-  title: "On Track - what motorsport is on, and when",
-  description:
-    "Every practice, qualifying and race session across ten championships, in your own timezone.",
+  // metadataBase lets every other route give a relative canonical and still
+  // emit absolute URLs, which Open Graph requires.
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "ON TRACK - what motorsport is on, and when",
+    // Page titles read "Italian GP - session times | ON TRACK".
+    template: "%s | ON TRACK",
+  },
+  description: DESCRIPTION,
+  applicationName: "ON TRACK",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "ON TRACK",
+    title: "ON TRACK - what motorsport is on, and when",
+    description: DESCRIPTION,
+    url: "/",
+    locale: "en",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ON TRACK - what motorsport is on, and when",
+    description: DESCRIPTION,
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
