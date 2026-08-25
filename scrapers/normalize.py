@@ -50,7 +50,9 @@ _SESSION_TYPE_RULES: tuple[tuple[str, str], ...] = (
     (r"^p\d+$", "practice"),
     (r"\b(qualifying|qualification|quali|hyperpole|superpole)\b", "qualifying"),
     (r"^q\d*$", "qualifying"),
-    (r"\b(feature\s+race|race|grand\s+prix)\b", "race"),
+    # F2 and F3 call their main race the "Feature", frequently with no
+    # "race" after it. Safe here because the sprint rules above already ran.
+    (r"\b(feature(\s+race)?|race|grand\s+prix)\b", "race"),
     (r"\b\d+\s*(hours?|h|minutes?)\s+of\b", "race"),
     (r"\b(test|testing)\b", "test"),
 )

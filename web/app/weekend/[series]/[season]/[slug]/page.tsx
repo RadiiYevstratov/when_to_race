@@ -77,7 +77,16 @@ export default async function WeekendPage({ params }: PageProps) {
   const circuitZone = event.circuitTimezone;
   const stale = isStale(event.lastSuccessfulScrape, now);
 
-  const categories = [...new Set(weekend.sessions.map((session) => session.categoryShortName))];
+  // Listed in championship order rather than the order they first run. F1
+  // Academy often opens a Friday, but "F1 Academy - F3 - F2 - F1" reads as an
+  // odd way round to anyone who knows the hierarchy.
+  const categories = [
+    ...new Map(
+      [...weekend.sessions]
+        .sort((a, b) => a.categorySortOrder - b.categorySortOrder)
+        .map((session) => [session.categoryCode, session.categoryShortName]),
+    ).values(),
+  ];
 
   const description = describe(event);
   const crumbs = [

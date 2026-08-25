@@ -18,7 +18,18 @@ sort_order = 10
 [series.source]
 adapter = "f1"
 status = "live"
+# The Grand Prix feed carries Formula 1 only.
 url = "https://f1.vidmar.net/calendar.ics"
+# F2, F3 and F1 Academy are published separately by motorsportcalendars.com,
+# the operator behind f1calendar.com (github.com/sportstimes/f1). Each attends
+# only part of the season, and their round names do not match the Grand Prix
+# names, so the adapter attaches them to a weekend by time. See
+# docs/sources.md#formula-1.
+extra_urls = [
+  "https://files-f2.motorsportcalendars.com/f2-calendar_p_q_sprint_feature.ics",
+  "https://files-f3.motorsportcalendars.com/f3-calendar_p_q_sprint_feature.ics",
+  "https://files-f1-academy.motorsportcalendars.com/f1-academy-calendar_fp1_fp2_qualifying1_qualifying2_race1_race2_race3.ics",
+]
 discovery_notes = "docs/sources.md#formula-1"
 [[series.categories]]
 code = "f1"

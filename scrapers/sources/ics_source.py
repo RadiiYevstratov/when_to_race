@@ -24,8 +24,13 @@ class IcsSource:
     detail_level: str = "full"
     venue_aliases: dict[str, str] = {}
 
-    def __init__(self, feed_url: Optional[str] = None):
+    def __init__(
+        self,
+        feed_url: Optional[str] = None,
+        extra_urls: Iterable[str] = (),
+    ):
         self.feed_url = feed_url
+        self.extra_urls = tuple(extra_urls)
 
     # --- fetch ------------------------------------------------------------
     def urls(self, season: int) -> list[str]:
@@ -34,7 +39,8 @@ class IcsSource:
                 f"{self.series_code}: no feed URL configured. Run discovery first "
                 f"and set source.url in config/series.toml (see docs/sources.md)."
             )
-        return [self.feed_url.format(season=season)]
+        feeds = [self.feed_url, *self.extra_urls]
+        return [url.format(season=season) for url in feeds]
 
     # --- hooks ------------------------------------------------------------
     def split_summary(self, summary: str) -> tuple[str, str]:

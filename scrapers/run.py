@@ -118,7 +118,15 @@ def main(argv: Optional[list[str]] = None) -> int:
             continue
 
         try:
-            source = get_source(adapter, feed_url=series.source.url) if adapter != "fixture" else get_source(adapter)
+            if adapter == "fixture":
+                source = get_source(adapter)
+            else:
+                # extra_urls is passed only when configured: adapters that do
+                # not accept it simply never see it.
+                options = {"feed_url": series.source.url}
+                if series.source.extra_urls:
+                    options["extra_urls"] = series.source.extra_urls
+                source = get_source(adapter, **options)
         except KeyError:
             logger.error(
                 "%s: no adapter %r yet. Registered: %s. This series is still awaiting "

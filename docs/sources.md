@@ -155,8 +155,8 @@ time.)*
 | Response shape | RFC 5545, one VEVENT per session. Captured in `scrapers/fixtures/f1_ical_feed.ics` |
 | **Timezone convention** | **All times UTC-stamped** (`DTSTART:20260906T130000Z`). No TZID, no floating times, no local-time conversion needed |
 | Provisional times distinguishable? | **No.** No STATUS:TENTATIVE, no TBC marker. Everything arrives as if confirmed, so `time_status` is always `confirmed` for this source. See "Known limitations" |
-| Support categories included? | **No.** F1 only. No F2, F3 or F1 Academy |
-| Coverage | 22 rounds, 110 sessions for 2026. Sprint weekends correctly distinguish Sprint Qualifying from Sprint |
+| Support categories included? | **No.** F1 only. F2, F3 and F1 Academy come from a second publisher - see below |
+| Coverage | 22 rounds, 110 Formula 1 sessions for 2026, plus 117 support sessions from the feeds below. Sprint weekends correctly distinguish Sprint Qualifying from Sprint |
 | Refresh behaviour | Feed carries `DTSTAMP` for the whole file, not per event. Current build stamped 20 May 2026 |
 | Auth | None |
 | robots.txt | Fetched 200 and permits the calendar path. Verified 21 August 2026 |
@@ -178,17 +178,62 @@ time.)*
 - LOCATION is a bare circuit or city name ("Monza", "Melbourne", "Madrid"),
   mapped through `venue_aliases`.
 
+#### F2, F3 and F1 Academy
+
+**Status: live.** Verified 25 August 2026.
+
+| Field | Finding |
+|---|---|
+| Endpoints | `https://files-f2.motorsportcalendars.com/f2-calendar_p_q_sprint_feature.ics`, the matching `files-f3` host, and `files-f1-academy` with `f1-academy-calendar_fp1_fp2_qualifying1_qualifying2_race1_race2_race3.ics` |
+| Type | ICS feeds, published for public subscription |
+| Official? | **No.** motorsportcalendars.com, the publisher behind f1calendar.com. Open source at `github.com/sportstimes/f1` |
+| Discovery | The filenames encode the session types selected in the generator UI at f2calendar.com/generate. They are built client-side, so the URL only appears once the form is submitted |
+| **Timezone convention** | **All times UTC-stamped**, like the Grand Prix feed |
+| End times | **Present on every entry**, unlike WEC and WorldSBK |
+| Coverage 2026 | F2 at 14 rounds (56 sessions), F3 at 9 (36), F1 Academy at 6 (25) |
+| robots.txt | The file hosts return **HTTP 500** for `/robots.txt`. A 500 is not a disallow, and the client treats it as such; the generator UI exists precisely to hand these URLs out for subscription |
+| Auth | None |
+| Confidence | Medium-high. Long-running open-source project with a named maintainer, wider than one person's side project |
+
+**The summary shape is a second dialect**, and `scrapers/sources/f1.py` reads
+both: `F2: Feature (Italian)` - category, session, then the round in brackets -
+against the Grand Prix feed's `Italian GP: Race`. Splitting the support form on
+`": "` the way the main feed is split would produce an event called "F2".
+
+**Support sessions are attached to a Grand Prix by time, not by name.** This is
+the load-bearing decision in the adapter. The round names in these feeds cannot
+be matched to the Grand Prix names:
+
+- They are shortened and inconsistent: "Australian", "USA", "Zandvoort", "Canada".
+- "USA" means **Miami**, not the United States Grand Prix at Austin. Mapping it
+  by name would have put those sessions on the wrong weekend, on the wrong side
+  of the Atlantic seaboard, six months out.
+- 2026 has two Spanish rounds, and the feeds call them "Spanish" and "Spanish
+  Grand Prix" - both of which slugify to the same thing.
+
+A session that runs inside a Grand Prix weekend belongs to it, and unlike a name
+that is checkable. The adapter builds a span per Grand Prix from its own
+sessions and takes the nearest, within three days. Three rather than one because
+**Monaco runs Formula 3 on the Thursday**: with a one-day window that practice
+missed its weekend by five minutes. A session with no Grand Prix inside the
+window is dropped and logged, never guessed onto the closest thing.
+
+Against the live feeds this places all 117 support sessions with none unmatched.
+
 **Known limitations, in order of how much they matter:**
 
 1. **No provisional-time signal.** The product's stated worst failure mode is
-   showing a provisional time as confirmed, and this source makes that
-   impossible to avoid - it does not distinguish them. Anything better here
-   would need a second source.
-2. **F1 only.** The unified weekend view, which is the reason this project
-   exists, is not exercised by this source at all.
-3. **Single point of failure.** One unofficial feed, no fallback. If it goes
-   stale the 48-hour staleness marker will show it, but the site has nothing
-   else to fall back to.
+   showing a provisional time as confirmed, and these sources make that
+   impossible to avoid - they do not distinguish them. Anything better here
+   would need a different source.
+2. **Two publishers, neither official.** The Grand Prix and its support races
+   now come from different unofficial projects. Either can go stale
+   independently, and the 48-hour marker is per series, not per feed - so a
+   dead support feed would show as a quietly F1-only season rather than as an
+   error. Worth a per-category staleness check if this recurs.
+3. **Support rounds depend on the Grand Prix feed.** Attachment needs Grand
+   Prix weekends to attach to. If the main feed fails, support sessions are
+   dropped rather than allowed to invent half-empty events of their own.
 4. **Two Spanish rounds from 2026** - Barcelona and Madrid. A `"spain"` venue
    alias was deliberately removed: it would have silently sent Madrid sessions
    to the wrong circuit. Watch for this pattern in every other series.

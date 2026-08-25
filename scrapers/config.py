@@ -36,6 +36,10 @@ class SourceConfig:
     adapter: str
     status: str = "unverified"  # unverified | live
     url: Optional[str] = None
+    # Further feeds fetched alongside `url`, for a series whose categories are
+    # published separately - Formula 1, whose support championships come from a
+    # different publisher than the Grand Prix itself.
+    extra_urls: tuple[str, ...] = ()
     discovery_notes: Optional[str] = None
 
     @property
@@ -127,6 +131,7 @@ def load_series(config_dir: Optional[str] = None) -> dict[str, SeriesConfig]:
             adapter=source_raw.get("adapter", code),
             status=source_raw.get("status", "unverified"),
             url=source_raw.get("url"),
+            extra_urls=tuple(source_raw.get("extra_urls", ())),
             discovery_notes=source_raw.get("discovery_notes"),
         )
         if source.status not in ("unverified", "live"):

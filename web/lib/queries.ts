@@ -77,6 +77,7 @@ export interface SessionRow {
   sourceUrl: string | null;
   categoryCode: string;
   categoryShortName: string;
+  categorySortOrder: number;
   seriesCode: string;
   seriesName: string;
   seriesShortName: string;
@@ -112,6 +113,7 @@ const sessionSelection = {
   sourceUrl: sessions.sourceUrl,
   categoryCode: categories.code,
   categoryShortName: categories.shortName,
+  categorySortOrder: categories.sortOrder,
   seriesCode: series.code,
   seriesName: series.name,
   seriesShortName: series.shortName,
