@@ -113,6 +113,49 @@ export function offsetLabel(value: string | Date, timeZone: string): string {
 }
 
 /**
+ * ISO 8601 carrying the offset of the given zone, e.g. "2026-09-06T15:00:00+02:00".
+ *
+ * Structured data wants the event's own local time. A "Z" timestamp is correct
+ * but tells a consumer nothing about which clock the session was scheduled
+ * against, and search results show event times in local terms - so the offset
+ * is the part that has to survive.
+ *
+ * hourCycle "h23" rather than hour12:false: some ICU builds render midnight as
+ * hour 24 of the previous day, which would move a night session back a day.
+ */
+export function toLocalIso(value: string | Date, timeZone: string): string {
+  const date = toDate(value);
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+
+  const parts: Record<string, string> = {};
+  for (const part of formatter.formatToParts(date)) {
+    if (part.type !== "literal") parts[part.type] = part.value;
+  }
+
+  const local = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
+
+  // Read that same wall clock as if it were UTC; the gap to the real instant is
+  // the zone's offset at that moment, DST included.
+  const offsetMinutes = Math.round((Date.parse(`${local}Z`) - date.getTime()) / 60_000);
+  const sign = offsetMinutes < 0 ? "-" : "+";
+  const absolute = Math.abs(offsetMinutes);
+  const hours = String(Math.floor(absolute / 60)).padStart(2, "0");
+  const minutes = String(absolute % 60).padStart(2, "0");
+
+  return `${local}${sign}${hours}:${minutes}`;
+}
+
+/**
  * Whole-day difference between the same instant in two zones.
  *
  * Returns +1 when the viewer's calendar day is ahead of the circuit's, -1 when

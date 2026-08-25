@@ -11,14 +11,34 @@ import { notFound } from "next/navigation";
 
 import { DayBoard } from "../../../../../components/board.tsx";
 import { CircuitArt } from "../../../../../components/circuit-art.tsx";
+import { JsonLd } from "../../../../../components/json-ld.tsx";
 import { readPreferences } from "../../../../../lib/preferences.ts";
-import { getWeekend } from "../../../../../lib/queries.ts";
+import { getAdjacentEvents, getWeekend } from "../../../../../lib/queries.ts";
+import {
+  breadcrumbJsonLd,
+  seasonPath,
+  sportsEventJsonLd,
+} from "../../../../../lib/structured-data.ts";
 import { formatTime, isStale, offsetLabel } from "../../../../../lib/time.ts";
 
 export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ series: string; season: string; slug: string }>;
+}
+
+/** Shared so the meta description and the JSON-LD description cannot drift. */
+function describe(event: {
+  seriesShortName: string;
+  eventName: string;
+  venueName: string;
+  venueCity: string | null;
+}): string {
+  const where = event.venueCity ? `${event.venueName}, ${event.venueCity}` : event.venueName;
+  return (
+    `Every ${event.seriesShortName} session at the ${event.eventName}: practice, ` +
+    `qualifying and race times at ${where}, converted to your own timezone.`
+  );
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -28,10 +48,7 @@ export async function generateMetadata({ params }: PageProps) {
 
   const event = weekend.event;
   const title = `${event.eventName} ${event.season} - session times`;
-  const where = event.venueCity ? `${event.venueName}, ${event.venueCity}` : event.venueName;
-  const description =
-    `Every ${event.seriesShortName} session at the ${event.eventName}: practice, ` +
-    `qualifying and race times at ${where}, converted to your own timezone.`;
+  const description = describe(event);
   const path = `/weekend/${series}/${season}/${slug}`;
 
   return {
@@ -52,15 +69,47 @@ export default async function WeekendPage({ params }: PageProps) {
   if (!weekend) notFound();
 
   const now = new Date();
-  const { timeZone } = await readPreferences();
+  const [{ timeZone }, adjacent] = await Promise.all([
+    readPreferences(),
+    getAdjacentEvents(series, seasonNumber, weekend.sessions[0].startsAtUtc),
+  ]);
   const event = weekend.event;
   const circuitZone = event.circuitTimezone;
   const stale = isStale(event.lastSuccessfulScrape, now);
 
   const categories = [...new Set(weekend.sessions.map((session) => session.categoryShortName))];
 
+  const description = describe(event);
+  const crumbs = [
+    { name: "ON TRACK", path: "/" },
+    { name: `Season ${event.season}`, path: seasonPath(event.season, now.getUTCFullYear()) },
+    { name: `${event.eventName} ${event.season}`, path: `/weekend/${series}/${season}/${slug}` },
+  ];
+
   return (
     <article className="space-y-8">
+      <JsonLd data={sportsEventJsonLd(event, weekend.sessions, description)} />
+      <JsonLd data={breadcrumbJsonLd(crumbs)} />
+
+      <nav aria-label="Breadcrumb" className="font-mono text-xs text-ink-faint">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          {crumbs.map((crumb, index) => (
+            <li key={crumb.path} className="flex items-center gap-1.5">
+              {index > 0 ? <span aria-hidden="true">/</span> : null}
+              {index === crumbs.length - 1 ? (
+                <span aria-current="page" className="text-ink-muted">
+                  {crumb.name}
+                </span>
+              ) : (
+                <Link href={crumb.path} className="hover:text-ink-muted">
+                  {crumb.name}
+                </Link>
+              )}
+            </li>
+          ))}
+        </ol>
+      </nav>
+
       <header className="has-circuit-art relative overflow-hidden">
         <CircuitArt venueSlug={event.venueSlug} />
         <div className="flex items-baseline gap-3">
@@ -113,12 +162,46 @@ export default async function WeekendPage({ params }: PageProps) {
           All times shown in {timeZone.replace(/_/g, " ")}. The first session starts at{" "}
           {formatTime(weekend.sessions[0].startsAtUtc, circuitZone)} local time at the circuit.
         </p>
+        {adjacent.previous || adjacent.next ? (
+          <nav
+            aria-label={`Other ${event.seriesShortName} rounds`}
+            className="flex flex-wrap justify-between gap-4 border-y border-rule py-3"
+          >
+            {adjacent.previous ? (
+              <Link
+                href={`/weekend/${adjacent.previous.seriesCode}/${adjacent.previous.season}/${adjacent.previous.slug}`}
+                className="hover:text-ink"
+              >
+                &larr; {adjacent.previous.name}
+              </Link>
+            ) : (
+              <span />
+            )}
+            {adjacent.next ? (
+              <Link
+                href={`/weekend/${adjacent.next.seriesCode}/${adjacent.next.season}/${adjacent.next.slug}`}
+                className="text-right hover:text-ink"
+              >
+                {adjacent.next.name} &rarr;
+              </Link>
+            ) : (
+              <span />
+            )}
+          </nav>
+        ) : null}
+
         <div className="flex flex-wrap gap-4">
           <Link
             href={`/api/calendar/${event.seriesCode}.ics`}
             className="border-b border-ink-muted hover:text-ink"
           >
             Download {event.seriesShortName} calendar
+          </Link>
+          <Link
+            href={seasonPath(event.season, now.getUTCFullYear())}
+            className="border-b border-ink-muted hover:text-ink"
+          >
+            Full {event.season} calendar
           </Link>
           {event.sourceUrl ? (
             <a

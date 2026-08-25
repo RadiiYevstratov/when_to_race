@@ -6,7 +6,7 @@
  * generic helpers.
  */
 
-import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -78,16 +78,21 @@ export interface SessionRow {
   categoryCode: string;
   categoryShortName: string;
   seriesCode: string;
+  seriesName: string;
   seriesShortName: string;
   accentColor: string;
   lastSuccessfulScrape: Date | null;
   eventSlug: string;
   eventName: string;
+  officialName: string | null;
+  eventStatus: string;
   season: number;
   venueSlug: string;
   venueName: string;
   venueCity: string | null;
   venueCountry: string;
+  venueLatitude: number | null;
+  venueLongitude: number | null;
   circuitTimezone: string;
   sessionTimezone: string | null;
 }
@@ -108,16 +113,21 @@ const sessionSelection = {
   categoryCode: categories.code,
   categoryShortName: categories.shortName,
   seriesCode: series.code,
+  seriesName: series.name,
   seriesShortName: series.shortName,
   accentColor: series.accentColor,
   lastSuccessfulScrape: series.lastSuccessfulScrape,
   eventSlug: events.slug,
   eventName: events.name,
+  officialName: events.officialName,
+  eventStatus: events.status,
   season: events.season,
   venueSlug: venues.slug,
   venueName: venues.name,
   venueCity: venues.city,
   venueCountry: venues.countryCode,
+  venueLatitude: venues.latitude,
+  venueLongitude: venues.longitude,
   circuitTimezone: venues.ianaTimezone,
   sessionTimezone: sessions.ianaTimezone,
 };
@@ -258,6 +268,58 @@ export async function getSeasonEvents(seriesCodes: string[] = [], season: number
       ),
     )
     .orderBy(asc(events.startsAtUtc));
+}
+
+/** Every season that has published rounds, newest first. */
+export async function getPublishedSeasons(): Promise<number[]> {
+  const rows = await db
+    .selectDistinct({ season: events.season })
+    .from(events)
+    .where(isNull(events.retiredAt))
+    .orderBy(asc(events.season));
+  return rows.map((row) => row.season).sort((a, b) => b - a);
+}
+
+/**
+ * The rounds either side of this one, within the same series and season.
+ *
+ * Partly navigation and partly reach: without these, a weekend page is only
+ * linked from the season calendar, so a crawler has to go back to the top of
+ * the site between every round. Adjacent links let it walk the season.
+ */
+export async function getAdjacentEvents(
+  seriesCode: string,
+  season: number,
+  startsAtUtc: Date,
+) {
+  const selection = {
+    slug: events.slug,
+    name: events.name,
+    season: events.season,
+    seriesCode: series.code,
+    startsAtUtc: events.startsAtUtc,
+  };
+
+  const base = and(isNull(events.retiredAt), eq(series.code, seriesCode), eq(events.season, season));
+
+  const [previous, next] = await Promise.all([
+    db
+      .select(selection)
+      .from(events)
+      .innerJoin(series, eq(series.id, events.seriesId))
+      .where(and(base, lt(events.startsAtUtc, startsAtUtc)))
+      .orderBy(desc(events.startsAtUtc))
+      .limit(1),
+    db
+      .select(selection)
+      .from(events)
+      .innerJoin(series, eq(series.id, events.seriesId))
+      .where(and(base, gt(events.startsAtUtc, startsAtUtc)))
+      .orderBy(asc(events.startsAtUtc))
+      .limit(1),
+  ]);
+
+  return { previous: previous[0] ?? null, next: next[0] ?? null };
 }
 
 export async function getAllSeries() {

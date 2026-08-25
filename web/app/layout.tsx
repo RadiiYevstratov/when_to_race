@@ -2,11 +2,13 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import Link from "next/link";
 
+import { JsonLd } from "../components/json-ld.tsx";
 import { TimezoneBar } from "../components/timezone-bar.tsx";
 import { readPreferences } from "../lib/preferences.ts";
 import { getAllSeries } from "../lib/queries.ts";
 import { SeriesFilter } from "../components/series-filter.tsx";
 import { SITE_URL } from "../lib/site.ts";
+import { websiteJsonLd } from "../lib/structured-data.ts";
 
 import "./globals.css";
 
@@ -52,6 +54,12 @@ export const metadata: Metadata = {
     title: "ON TRACK - what motorsport is on, and when",
     description: DESCRIPTION,
   },
+  // Search Console's meta-tag verification. Read from the environment so the
+  // token is configured on the host rather than committed, and so the tag is
+  // simply absent when it is not set.
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
 };
 
 // Icons are picked up from the files in this directory - favicon.ico, icon.svg
@@ -68,6 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`${archivo.variable} ${plexMono.variable}`}>
       <body className="min-h-screen font-sans antialiased">
+        <JsonLd data={websiteJsonLd(DESCRIPTION)} />
         <a
           href="#board"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-panel focus:px-3 focus:py-2"

@@ -1,5 +1,14 @@
 import Link from "next/link";
 
+/**
+ * The 404 status is the real signal; this is belt and braces for anything that
+ * indexes on content rather than status code.
+ */
+export const metadata = {
+  title: "Not found",
+  robots: { index: false, follow: true },
+};
+
 export default function NotFound() {
   return (
     <div className="border border-dashed border-rule px-4 py-16 text-center">

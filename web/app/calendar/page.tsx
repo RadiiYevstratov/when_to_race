@@ -9,40 +9,55 @@
 import Link from "next/link";
 
 import { EmptyBoard } from "../../components/board.tsx";
+import { JsonLd } from "../../components/json-ld.tsx";
 import { readPreferences } from "../../lib/preferences.ts";
 import { getSeasonEvents } from "../../lib/queries.ts";
+import { breadcrumbJsonLd, seasonListJsonLd, seasonPath } from "../../lib/structured-data.ts";
 import { dayKey, formatShortDay } from "../../lib/time.ts";
 
 export const dynamic = "force-dynamic";
-
-export const metadata = {
-  title: "Season calendar",
-  description:
-    "Every round of the Formula 1, MotoGP, WorldSBK and FIA WEC seasons, with " +
-    "dates and circuits, in your own timezone.",
-  alternates: { canonical: "/calendar" },
-  openGraph: {
-    title: "Season calendar",
-    description: "Every round of the season, in your own timezone.",
-    url: "/calendar",
-    siteName: "ON TRACK",
-  },
-};
 
 interface PageProps {
   searchParams: Promise<{ season?: string }>;
 }
 
+export async function generateMetadata({ searchParams }: PageProps) {
+  const { season: seasonParam } = await searchParams;
+  const thisYear = new Date().getUTCFullYear();
+  const season = Number(seasonParam) || thisYear;
+  const path = seasonPath(season, thisYear);
+
+  const title = `${season} season calendar`;
+  const description =
+    `Every round of the ${season} Formula 1, MotoGP, WorldSBK and FIA WEC seasons, ` +
+    `with dates and circuits, in your own timezone.`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    openGraph: { title, description, url: path, siteName: "ON TRACK" },
+  };
+}
+
 export default async function CalendarPage({ searchParams }: PageProps) {
   const now = new Date();
   const { season: seasonParam } = await searchParams;
-  const season = Number(seasonParam) || now.getUTCFullYear();
+  const thisYear = now.getUTCFullYear();
+  const season = Number(seasonParam) || thisYear;
 
   const { timeZone, seriesCodes } = await readPreferences();
   const events = await getSeasonEvents(seriesCodes, season);
 
   return (
     <div className="space-y-6">
+      {events.length > 0 ? <JsonLd data={seasonListJsonLd(season, events)} /> : null}
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "ON TRACK", path: "/" },
+          { name: `Season ${season}`, path: seasonPath(season, thisYear) },
+        ])}
+      />
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl">Season {season}</h1>
         <nav className="flex gap-3 font-mono text-xs text-ink-muted">
