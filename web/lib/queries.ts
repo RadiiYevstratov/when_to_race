@@ -12,12 +12,6 @@ import postgres from "postgres";
 
 import { categories, events, series, sessions, venues } from "./schema.ts";
 
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error("DATABASE_URL is not set");
-}
-
 // One pooled client per server instance, cached on globalThis so Next.js dev
 // hot-reloads reuse it instead of opening a fresh pool on every edit - which
 // otherwise leaks connections until Supabase's session pooler (a hard cap of
@@ -25,16 +19,48 @@ if (!connectionString) {
 // small: the pooler is the shared resource, not this process.
 const globalForDb = globalThis as unknown as {
   pgClient?: ReturnType<typeof postgres>;
+  drizzleDb?: ReturnType<typeof drizzle>;
 };
 
-const client =
-  globalForDb.pgClient ?? postgres(connectionString, { prepare: false, max: 3 });
+/**
+ * Connect on first query rather than on import.
+ *
+ * `next build` evaluates every route module to collect page data, so throwing
+ * at import time made the build itself require database credentials - it failed
+ * on any host that does not expose runtime secrets to the build step. Nothing
+ * here is needed at build time: every page is force-dynamic and postgres.js
+ * opens its sockets lazily anyway. Deferring means a missing DATABASE_URL is
+ * reported when a request actually needs the database, which is both the honest
+ * moment and the one where the message is useful.
+ */
+function getDb(): ReturnType<typeof drizzle> {
+  if (globalForDb.drizzleDb) return globalForDb.drizzleDb;
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.pgClient = client;
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  const client =
+    globalForDb.pgClient ?? postgres(connectionString, { prepare: false, max: 3 });
+  const instance = drizzle(client);
+
+  if (process.env.NODE_ENV !== "production") {
+    globalForDb.pgClient = client;
+  }
+  globalForDb.drizzleDb = instance;
+  return instance;
 }
 
-export const db = drizzle(client);
+// Exported as a lazy proxy so callers keep using `db.select(...)` unchanged.
+// Methods are bound to the real instance, which Drizzle's builders rely on.
+export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+  get(_target, property) {
+    const instance = getDb() as unknown as Record<string | symbol, unknown>;
+    const value = instance[property];
+    return typeof value === "function" ? value.bind(instance) : value;
+  },
+});
 
 export interface SessionRow {
   id: number;
