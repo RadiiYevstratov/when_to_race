@@ -80,7 +80,36 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             source before travelling or setting an alarm.
           </p>
           <p className="mt-2">
-            Formula 1 schedule data comes from the community-maintained{" "}
+            An independent, non-commercial project. Not affiliated with, endorsed by or
+            connected to any championship, series organiser or rights holder. All series
+            names and trade marks belong to their respective owners.
+          </p>
+          <p className="mt-2">
+            Schedules are compiled from each championship&rsquo;s published calendar:{" "}
+            <a
+              href="https://www.motogp.com/en/calendar"
+              rel="noopener noreferrer"
+              className="border-b border-ink-faint hover:text-ink-muted"
+            >
+              MotoGP
+            </a>
+            ,{" "}
+            <a
+              href="https://www.worldsbk.com/en/calendar"
+              rel="noopener noreferrer"
+              className="border-b border-ink-faint hover:text-ink-muted"
+            >
+              WorldSBK
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://www.fiawec.com/en"
+              rel="noopener noreferrer"
+              className="border-b border-ink-faint hover:text-ink-muted"
+            >
+              FIA WEC
+            </a>
+            . Formula 1 times come from the community-maintained{" "}
             <a
               href="https://f1.vidmar.net/"
               rel="noopener noreferrer"
@@ -88,7 +117,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             >
               F1 Calendar
             </a>{" "}
-            feed, not from an official Formula 1 source. Times are subject to change.
+            feed, not from an official Formula 1 source.
           </p>
         </footer>
       </body>
