@@ -46,8 +46,8 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   const thisYear = now.getUTCFullYear();
   const season = Number(seasonParam) || thisYear;
 
-  const { timeZone, seriesCodes } = await readPreferences();
-  const events = await getSeasonEvents(seriesCodes, season);
+  const { timeZone, selection } = await readPreferences();
+  const events = await getSeasonEvents(selection, season);
 
   return (
     <div className="space-y-6">

@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { getPublishedSeasons, getSeasonEvents } from "../lib/queries.ts";
 import { SITE_URL } from "../lib/site.ts";
+import { EMPTY_SELECTION } from "../lib/selection.ts";
 import { seasonPath } from "../lib/structured-data.ts";
 
 /**
@@ -43,7 +44,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
 
     const perSeason = await Promise.all(
-      seasons.map((season) => getSeasonEvents([], season)),
+      // No filter: the sitemap lists every page, whatever a visitor follows.
+      seasons.map((season) => getSeasonEvents(EMPTY_SELECTION, season)),
     );
 
     const weekends: MetadataRoute.Sitemap = perSeason.flat().map((event) => ({

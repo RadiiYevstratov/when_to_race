@@ -7,7 +7,8 @@
  */
 
 import { readPreferences } from "../../lib/preferences.ts";
-import { getAllSeries } from "../../lib/queries.ts";
+import { getSeriesCatalogue } from "../../lib/queries.ts";
+import { formatSelection, isEverything } from "../../lib/selection.ts";
 import { CopyableFeed } from "../../components/copyable-feed.tsx";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,19 @@ export const metadata = {
 };
 
 export default async function SubscribePage() {
-  const [{ seriesCodes }, allSeries] = await Promise.all([readPreferences(), getAllSeries()]);
-  const selection = seriesCodes.length > 0 ? seriesCodes.join("+") : "all";
+  const [{ selection }, allSeries] = await Promise.all([
+    readPreferences(),
+    getSeriesCatalogue(),
+  ]);
+
+  // The board filter and the feed URL are the same token format, so what the
+  // viewer picked in the header is literally the feed they get.
+  const groups = allSeries.map((item) => ({
+    code: item.code,
+    categoryCodes: item.categories.filter((c) => c.sessionCount > 0).map((c) => c.code),
+  }));
+  const feed = formatSelection(selection, groups);
+  const following = selection.seriesCodes.length + selection.categoryCodes.length;
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -43,11 +55,11 @@ export default async function SubscribePage() {
       <section className="space-y-3">
         <h2 className="eyebrow">Your current selection</h2>
         <p className="text-sm text-ink-muted">
-          {seriesCodes.length > 0
-            ? `Following ${seriesCodes.length} series. Change the selection in the header and this feed changes with it.`
-            : "Following every series. Narrow it in the header if you want a smaller feed."}
+          {isEverything(selection)
+            ? "Following everything. Narrow it in the header if you want a smaller feed."
+            : `Following ${following} ${following === 1 ? "selection" : "selections"}. Change them in the header and this feed changes with it.`}
         </p>
-        <CopyableFeed selection={selection} />
+        <CopyableFeed selection={feed} />
       </section>
 
       <section className="space-y-3">

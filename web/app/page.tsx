@@ -33,7 +33,7 @@ export default async function HomePage({
   searchParams: Promise<{ days?: string }>;
 }) {
   const now = new Date();
-  const { timeZone, seriesCodes } = await readPreferences();
+  const { timeZone, selection } = await readPreferences();
 
   const requested = Number.parseInt((await searchParams).days ?? "", 10);
   const days = Math.min(
@@ -43,10 +43,10 @@ export default async function HomePage({
   const windowEnd = new Date(now.getTime() + days * 86_400_000);
 
   const [live, upcoming, window, moreAhead] = await Promise.all([
-    getLiveSessions(seriesCodes, now),
-    getUpcomingSessions(seriesCodes, 1, now),
-    getSessionsInWindow(seriesCodes, days, now),
-    hasSessionsAfter(seriesCodes, windowEnd),
+    getLiveSessions(selection, now),
+    getUpcomingSessions(selection, 1, now),
+    getSessionsInWindow(selection, days, now),
+    hasSessionsAfter(selection, windowEnd),
   ]);
 
   const next = upcoming[0];

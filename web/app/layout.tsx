@@ -5,7 +5,7 @@ import Link from "next/link";
 import { JsonLd } from "../components/json-ld.tsx";
 import { TimezoneBar } from "../components/timezone-bar.tsx";
 import { readPreferences } from "../lib/preferences.ts";
-import { getAllSeries } from "../lib/queries.ts";
+import { getSeriesCatalogue } from "../lib/queries.ts";
 import { SeriesFilter } from "../components/series-filter.tsx";
 import { SITE_URL } from "../lib/site.ts";
 import { websiteJsonLd } from "../lib/structured-data.ts";
@@ -71,7 +71,10 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [preferences, allSeries] = await Promise.all([readPreferences(), getAllSeries()]);
+  const [preferences, allSeries] = await Promise.all([
+    readPreferences(),
+    getSeriesCatalogue(),
+  ]);
 
   return (
     <html lang="en" className={`${archivo.variable} ${plexMono.variable}`}>
@@ -109,7 +112,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
 
           <div className="mx-auto max-w-4xl px-4 pb-6 pt-1">
-            <SeriesFilter allSeries={allSeries} selected={preferences.seriesCodes} />
+            <SeriesFilter allSeries={allSeries} selected={preferences.selection} />
           </div>
         </header>
 

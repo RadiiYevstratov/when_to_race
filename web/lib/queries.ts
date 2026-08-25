@@ -11,6 +11,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { categories, events, series, sessions, venues } from "./schema.ts";
+import { type Selection } from "./selection.ts";
 
 // One pooled client per server instance, cached on globalThis so Next.js dev
 // hot-reloads reuse it instead of opening a fresh pool on every edit - which
@@ -61,6 +62,9 @@ export const db = new Proxy({} as ReturnType<typeof drizzle>, {
     return typeof value === "function" ? value.bind(instance) : value;
   },
 });
+
+/** No filter at all: the default, and what most visitors want. */
+const EMPTY: Selection = { seriesCodes: [], categoryCodes: [] };
 
 export interface SessionRow {
   id: number;
@@ -147,18 +151,35 @@ function baseQuery() {
 /** Retired rows stay in the table for the audit trail but never render. */
 const visible = and(isNull(sessions.retiredAt), isNull(events.retiredAt), eq(series.isActive, true));
 
-function seriesFilter(seriesCodes: string[]) {
-  return seriesCodes.length > 0 ? inArray(series.code, seriesCodes) : undefined;
+/**
+ * Whole series OR individual categories.
+ *
+ * The two kinds of token are alternatives, never both: "f1.f2+motogp" means
+ * Formula 2 *or* everything in MotoGP, and ANDing them would return nothing.
+ * An empty selection filters nothing, which is how "everything" is expressed.
+ */
+function selectionFilter(selection: Selection) {
+  const bySeries =
+    selection.seriesCodes.length > 0 ? inArray(series.code, selection.seriesCodes) : undefined;
+  const byCategory =
+    selection.categoryCodes.length > 0
+      ? inArray(categories.code, selection.categoryCodes)
+      : undefined;
+  if (bySeries && byCategory) return or(bySeries, byCategory);
+  return bySeries ?? byCategory;
 }
 
 /** Anything running right now, by start/end rather than by a stored flag. */
-export async function getLiveSessions(seriesCodes: string[] = [], now = new Date()) {
+export async function getLiveSessions(
+  selection: Selection = EMPTY,
+  now = new Date(),
+) {
   const moment = now.toISOString();
   return baseQuery()
     .where(
       and(
         visible,
-        seriesFilter(seriesCodes),
+        selectionFilter(selection),
         lte(sessions.startsAtUtc, now),
         or(
           gte(sessions.endsAtUtc, now),
@@ -176,12 +197,12 @@ export async function getLiveSessions(seriesCodes: string[] = [], now = new Date
 }
 
 export async function getUpcomingSessions(
-  seriesCodes: string[] = [],
+  selection: Selection = EMPTY,
   limit = 40,
   now = new Date(),
 ) {
   return baseQuery()
-    .where(and(visible, seriesFilter(seriesCodes), gte(sessions.startsAtUtc, now)))
+    .where(and(visible, selectionFilter(selection), gte(sessions.startsAtUtc, now)))
     .orderBy(asc(sessions.startsAtUtc))
     .limit(limit);
 }
@@ -192,7 +213,7 @@ export async function getUpcomingSessions(
  * shakedowns and Saturday-night ovals.
  */
 export async function getSessionsInWindow(
-  seriesCodes: string[] = [],
+  selection: Selection = EMPTY,
   days = 5,
   now = new Date(),
 ) {
@@ -201,7 +222,7 @@ export async function getSessionsInWindow(
     .where(
       and(
         visible,
-        seriesFilter(seriesCodes),
+        selectionFilter(selection),
         gte(sessions.startsAtUtc, new Date(now.getTime() - 6 * 3_600_000)),
         lte(sessions.startsAtUtc, until),
       ),
@@ -214,11 +235,11 @@ export async function getSessionsInWindow(
  * decide whether a "Load more" control has anything left to reveal.
  */
 export async function hasSessionsAfter(
-  seriesCodes: string[] = [],
+  selection: Selection = EMPTY,
   when = new Date(),
 ) {
   const rows = await baseQuery()
-    .where(and(visible, seriesFilter(seriesCodes), gte(sessions.startsAtUtc, when)))
+    .where(and(visible, selectionFilter(selection), gte(sessions.startsAtUtc, when)))
     .limit(1);
   return rows.length > 0;
 }
@@ -240,7 +261,7 @@ export async function getWeekend(seriesCode: string, season: number, slug: strin
   return { event: rows[0], sessions: rows };
 }
 
-export async function getSeasonEvents(seriesCodes: string[] = [], season: number) {
+export async function getSeasonEvents(selection: Selection = EMPTY, season: number) {
   return db
     .select({
       id: events.id,
@@ -266,7 +287,7 @@ export async function getSeasonEvents(seriesCodes: string[] = [], season: number
       and(
         isNull(events.retiredAt),
         eq(events.season, season),
-        seriesCodes.length > 0 ? inArray(series.code, seriesCodes) : undefined,
+        seasonSelectionFilter(selection),
       ),
     )
     .orderBy(asc(events.startsAtUtc));
@@ -324,18 +345,107 @@ export async function getAdjacentEvents(
   return { previous: previous[0] ?? null, next: next[0] ?? null };
 }
 
-export async function getAllSeries() {
-  return db
+/**
+ * The same selection, applied to a query that lists events rather than
+ * sessions.
+ *
+ * Categories live on sessions, so a category filter becomes "this event has at
+ * least one visible session in one of these categories". The subquery is
+ * written as literal SQL with qualified names: Drizzle renders an interpolated
+ * column inside a raw fragment as a bare name, and `id` is ambiguous across the
+ * four tables joined here.
+ */
+function seasonSelectionFilter(selection: Selection) {
+  const bySeries =
+    selection.seriesCodes.length > 0 ? inArray(series.code, selection.seriesCodes) : undefined;
+
+  if (selection.categoryCodes.length === 0) return bySeries;
+
+  const codes = sql.join(
+    selection.categoryCodes.map((code) => sql`${code}`),
+    sql`, `,
+  );
+  const byCategory = sql`exists (
+    select 1 from sessions s2
+    join categories c2 on c2.id = s2.category_id
+    where s2.event_id = events.id
+      and s2.retired_at is null
+      and c2.code in (${codes})
+  )`;
+
+  return bySeries ? or(bySeries, byCategory) : byCategory;
+}
+
+/**
+ * Every series with the categories under it, for the header's filter.
+ *
+ * `sessionCount` is what tells a category apart from a placeholder: MotoE and
+ * WorldSSP300 are seeded but no longer run, and a chip that always yields an
+ * empty board reads as a broken filter rather than a discontinued class.
+ */
+export async function getSeriesCatalogue() {
+  const rows = await db
     .select({
-      code: series.code,
-      name: series.name,
-      shortName: series.shortName,
+      seriesCode: series.code,
+      seriesShortName: series.shortName,
       accentColor: series.accentColor,
       lastSuccessfulScrape: series.lastSuccessfulScrape,
+      seriesSortOrder: series.sortOrder,
+      categoryCode: categories.code,
+      categoryShortName: categories.shortName,
+      categorySortOrder: categories.sortOrder,
+      sessionCount: sql<number>`count(${sessions.id})`.mapWith(Number),
     })
     .from(series)
+    .innerJoin(categories, eq(categories.seriesId, series.id))
+    .leftJoin(
+      sessions,
+      and(eq(sessions.categoryId, categories.id), isNull(sessions.retiredAt)),
+    )
     .where(eq(series.isActive, true))
-    .orderBy(asc(series.sortOrder));
+    .groupBy(
+      series.code,
+      series.shortName,
+      series.accentColor,
+      series.lastSuccessfulScrape,
+      series.sortOrder,
+      categories.code,
+      categories.shortName,
+      categories.sortOrder,
+    )
+    .orderBy(asc(series.sortOrder), asc(categories.sortOrder));
+
+  const grouped = new Map<
+    string,
+    {
+      code: string;
+      shortName: string;
+      accentColor: string;
+      lastSuccessfulScrape: Date | null;
+      categories: { code: string; shortName: string; sessionCount: number }[];
+    }
+  >();
+
+  for (const row of rows) {
+    let group = grouped.get(row.seriesCode);
+    if (!group) {
+      group = {
+        code: row.seriesCode,
+        shortName: row.seriesShortName,
+        accentColor: row.accentColor,
+        lastSuccessfulScrape: row.lastSuccessfulScrape,
+        categories: [],
+      };
+      grouped.set(row.seriesCode, group);
+    }
+    group.categories.push({
+      code: row.categoryCode,
+      shortName: row.categoryShortName,
+      sessionCount: row.sessionCount,
+    });
+  }
+
+  return [...grouped.values()];
 }
 
 /** Sessions for the calendar feed: upcoming only, plus a short look-back. */
@@ -345,14 +455,13 @@ export async function getCalendarSessions(
   now = new Date(),
 ) {
   const from = new Date(now.getTime() - 7 * 86_400_000);
-
-  // "f1.f2+motogp" means the F2 category *or* everything in MotoGP. The two
-  // token kinds are alternatives; ANDing them would return nothing.
-  const bySeries = seriesCodes.length > 0 ? inArray(series.code, seriesCodes) : undefined;
-  const byCategory = categoryCodes.length > 0 ? inArray(categories.code, categoryCodes) : undefined;
-  const selection = bySeries && byCategory ? or(bySeries, byCategory) : (bySeries ?? byCategory);
-
   return baseQuery()
-    .where(and(visible, gte(sessions.startsAtUtc, from), selection))
+    .where(
+      and(
+        visible,
+        gte(sessions.startsAtUtc, from),
+        selectionFilter({ seriesCodes, categoryCodes }),
+      ),
+    )
     .orderBy(asc(sessions.startsAtUtc));
 }

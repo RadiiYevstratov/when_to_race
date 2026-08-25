@@ -7,6 +7,11 @@
  * someone's phone instead of moving.
  */
 
+// The selection format is shared with the board's filter, so it lives in
+// selection.ts. Re-exported here because this module's callers have always
+// found it at this address.
+export { parseSelection } from "./selection.ts";
+
 export interface CalendarSession {
   icsUid: string;
   icsSequence: number;
@@ -145,19 +150,3 @@ export function buildCalendar(sessions: CalendarSession[], options: CalendarOpti
  *   f1+motogp      several
  *   f1.f1          a single category within a series
  */
-export function parseSelection(selection: string): { seriesCodes: string[]; categoryCodes: string[] } {
-  const cleaned = decodeURIComponent(selection).replace(/\.ics$/i, "").trim().toLowerCase();
-  if (!cleaned || cleaned === "all") return { seriesCodes: [], categoryCodes: [] };
-
-  const seriesCodes: string[] = [];
-  const categoryCodes: string[] = [];
-  for (const token of cleaned.split(/[+,\s]+/).filter(Boolean)) {
-    if (token.includes(".")) {
-      const [, category] = token.split(".");
-      if (category) categoryCodes.push(category);
-    } else {
-      seriesCodes.push(token);
-    }
-  }
-  return { seriesCodes, categoryCodes };
-}

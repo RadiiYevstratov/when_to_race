@@ -15,14 +15,18 @@
 import { cookies } from "next/headers";
 
 import { COOKIE_MAX_AGE, SERIES_COOKIE, TIMEZONE_COOKIE } from "./preference-keys.ts";
+import { parseSelection, type Selection } from "./selection.ts";
 import { isValidTimeZone } from "./time.ts";
 
 export { COOKIE_MAX_AGE, SERIES_COOKIE, TIMEZONE_COOKIE };
 
 export interface ViewerPreferences {
   timeZone: string;
-  /** Empty means "all series", which is also the default. */
-  seriesCodes: string[];
+  /**
+   * What the viewer follows: whole series, individual categories, or - when
+   * both lists are empty, which is the default - everything.
+   */
+  selection: Selection;
   /** True when we are falling back rather than honouring a real preference. */
   timeZoneIsAssumed: boolean;
 }
@@ -34,13 +38,11 @@ export async function readPreferences(): Promise<ViewerPreferences> {
   const timeZoneIsAssumed = !rawZone || !isValidTimeZone(rawZone);
   const timeZone = timeZoneIsAssumed ? "UTC" : rawZone!;
 
-  const rawSeries = store.get(SERIES_COOKIE)?.value ?? "";
-  const seriesCodes = rawSeries
-    .split(",")
-    .map((code) => code.trim().toLowerCase())
-    .filter((code) => /^[a-z0-9_]+$/.test(code));
+  // Cookies written before categories were selectable hold bare series codes,
+  // which this format still reads as whole-series tokens.
+  const selection = parseSelection(store.get(SERIES_COOKIE)?.value ?? "");
 
-  return { timeZone, seriesCodes, timeZoneIsAssumed };
+  return { timeZone, selection, timeZoneIsAssumed };
 }
 
 /** "Europe/Bratislava" reads better as "Bratislava" in a tight header. */
