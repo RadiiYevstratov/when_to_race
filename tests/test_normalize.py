@@ -290,3 +290,69 @@ class GroupingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ImpossibleOverlapTests(unittest.TestCase):
+    """Two sessions of one class at the same instant.
+
+    A car cannot be in two places at once, so this is not a schedule - it is a
+    schedule with a mistake in it, and the mistake belongs to the source. Which
+    of the two times is wrong is not knowable from here, and inventing a
+    correction would be worse than saying nothing, so both are kept and both
+    are marked provisional.
+
+    This is a general rule rather than a patch for one site: it was written for
+    F1 Academy publishing Montreal's two qualifying sessions at an identical
+    minute, and it immediately found the same fault in Formula 2.
+    """
+
+    def setUp(self):
+        self.series = load_series()["f1"]
+        self.venues = load_venues()
+
+    def _normalize(self, parsed):
+        events = list(normalize(parsed, self.series, self.venues))
+        self.assertEqual(len(events), 1)
+        return events[0].sessions
+
+    def test_a_clash_is_flagged_and_both_sessions_are_kept(self):
+        clash = datetime(2026, 9, 5, 14, 0)
+        sessions = self._normalize([
+            _session("Qualifying 1", "f1", clash),
+            _session("Qualifying 2", "f1", clash),
+        ])
+        self.assertEqual(len(sessions), 2)
+        for item in sessions:
+            with self.subTest(item.display_name):
+                self.assertEqual(item.time_status, "provisional")
+
+    def test_two_classes_at_one_instant_are_left_alone(self):
+        """Different championships sharing a minute is a clash of nothing.
+
+        Support classes are attached to a Grand Prix weekend by date, so two of
+        them lining up is ordinary - only one class doing two things at once is
+        impossible.
+        """
+        clash = datetime(2026, 9, 5, 14, 0)
+        sessions = self._normalize([
+            _session("Qualifying", "f2", clash),
+            _session("Qualifying", "f3", clash),
+        ])
+        self.assertTrue(all(item.time_status == "confirmed" for item in sessions))
+
+    def test_day_precision_anchors_do_not_count_as_a_clash(self):
+        """A day-precision time is an anchor for a date, not a claim about a clock.
+
+        A round with no published times gets every session anchored at local
+        midday, so several sharing an instant is the design working rather than
+        a contradiction - and flagging them would be flagging them twice.
+        """
+        anchor = datetime(2026, 9, 5, 12, 0)
+        sessions = self._normalize([
+            _session("Practice", "f2", anchor, start_precision="day", time_status="provisional"),
+            _session("Qualifying", "f2", anchor, start_precision="day", time_status="provisional"),
+        ])
+        self.assertEqual(len(sessions), 2)
+        for item in sessions:
+            with self.subTest(item.display_name):
+                self.assertEqual(item.start_precision, "day")
