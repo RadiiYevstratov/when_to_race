@@ -1,6 +1,6 @@
 # Sources
 
-## Status: F1, MotoGP, WorldSBK, WEC and IndyCar live, the rest outstanding
+## Status: F1, MotoGP, WorldSBK, WEC, IndyCar and NASCAR live; WRC and IMSA outstanding
 
 Formula 1, MotoGP, WorldSBK and WEC are `status = "live"` and running against
 confirmed sources (see the findings below). MotoGP, WorldSBK and WEC were set
@@ -94,7 +94,7 @@ prior that a good structured source exists, nothing more.
 | WEC | ICS plausible | Medium | Le Mans is 24 hours: `ends_at_utc` is mandatory, and the frontend must render a session spanning three viewer-days |
 | IndyCar | JSON | Medium | ~~Practice/qualifying naming varies by oval vs road course. Indy 500 has a qualifying weekend a week before the race — two events or one? Decide and document~~ **Wrong on the format: there is no JSON, it is server-rendered HTML.** Right about the naming. The Indy 500 is one event of thirteen days, as the source publishes it |
 | IMSA | JSON | Medium | Daytona 24 and Sebring 12 have the same multi-day span problem as Le Mans |
-| NASCAR | JSON | Medium | Some rounds have no practice or qualifying at all. The session floor for NASCAR is set to 1 for this reason |
+| NASCAR | JSON | Medium | **Right on the format.** And right about the thin rounds: a Cup race can be the only session of its weekend, and the six playoff weekends have no timetable published at all |
 | WRC | Hardest | Low | 15–20 timed stages across four days. Stage-level data may not be reliably available ahead of time. Degrade to shakedown + day start/end + Power Stage and set `detail_level = 'partial'` rather than showing nothing — the schema and validation already support this |
 
 ---
@@ -572,4 +572,87 @@ a worse one - the same call made for F1 Academy before its own site was found.
 
 ### NASCAR
 
-Status: not investigated.
+**Status: live.** Investigated 26 August 2026. The best-shaped source of any
+championship here, and the cheapest to run: one request carries the whole season
+for all three national series.
+
+| Field | Finding |
+|---|---|
+| Endpoint | `https://cf.nascar.com/cacher/{season}/race_list_basic.json`. The feed behind nascar.com's own schedule page |
+| Type | JSON. `{"series_1": [...], "series_2": [...], "series_3": [...]}` - Cup, Xfinity, Craftsman Truck - each a list of races, each race carrying a `schedule` array of timed entries |
+| Official? | **Yes.** NASCAR's own content host |
+| **Timezone convention** | `start_time_utc`, and it genuinely is UTC - see below. No offsets, no per-track zones, nothing to infer |
+| Session typing | **The feed types its own entries.** `run_type` is 1 practice, 2 qualifying, 3 race, and 0 for paddock logistics. No name-guessing needed |
+| End times | None. Every entry is a start |
+| Provisional times | Not flagged, but effectively signalled: a race whose timetable is not published yet has an empty `schedule` rather than a made-up one |
+| Support categories | **Yes, all three in one payload** - the only source here where a weekend needs exactly one fetch |
+| Coverage 2026 | 98 races over 42 weekends, 249 sessions. 17 of those sessions are day-precision playoff races |
+| robots.txt | `www.nascar.com` disallows only `/wp-admin/` and `/*/feed/`; neither is this. `cf.nascar.com` serves no robots.txt at all (403), so there is no directive to honour or breach |
+| Auth | None |
+| Confidence | High. Official, structured, self-typing, and the timezone was confirmed against a second independent publication of the same times |
+
+**`start_time_utc` was verified, not trusted.** The field name is a claim, and
+the earlier F1 and IndyCar findings are what a wrong claim costs. nascar.com's
+schedule page publishes each race a second time and independently, with an
+offset-stamped time *and* a Unix epoch:
+
+```
+"Event_Time_Est":"2026-07-05T18:00:00-0400","Event_Time_Unix":"1783288800"
+```
+
+An epoch cannot be vague about its timezone. Across the 32 races carried by both
+representations the feed's UTC and the site's epoch agree **exactly - every one**,
+on both sides of the daylight-saving boundary and at Pacific tracks as well as
+Eastern ones.
+
+**`race_date` is not used for times**, deliberately. Its offset from the same
+race's UTC start is neither the track's zone nor consistently Eastern - Las Vegas
+and Sonoma both come out four hours apart, which is neither - so whatever
+convention it follows is not one worth guessing at. Only its date is read, and
+only for a race that has no timetable at all.
+
+**Two things needed deciding rather than parsing:**
+
+- **A weekend, not a race.** The three series each run their own race under their
+  own sponsored name at one track on one weekend, and this product's unit is the
+  weekend. Races group into events by track and ISO week - Friday, Saturday and
+  Sunday always share a week, which is why the week is the key - and the weekend
+  is then named after its **Cup** race, which is what it is known by and what
+  anyone would search for: "Coca-Cola 600", not "Charlotte, week 21". Naming
+  happens after grouping and not before, which is what lets the three series
+  share an event while each keeps its own race name. The Truck-only rounds at
+  Lime Rock and Indianapolis Raceway Park have no Cup race and take the
+  circuit's name; the month is added to any two names that would collide, which
+  in 2026 is Richmond's two "Cook Out 400"s.
+- **The playoffs have no timetable yet.** The last six weekends of 2026 carry an
+  empty `schedule`, because NASCAR publishes those closer to the date. The dates
+  are known, so the race is kept at day precision and marked provisional - the
+  board renders `--:--` - rather than either inventing a time or hiding the
+  championship decider from the calendar.
+
+**A race that was rained off is still in the feed at the time it did not run.**
+Charlotte's truck race in May appears three times: twice with `notes:
+"Postponed"` and once with the lap breakdown of the race that actually ran. All
+three stored would be three races on one weekend, and one race in a subscribed
+calendar three times - which is exactly what the validators reported, as a
+duplicate calendar UID. Worth noting that the feed **says** which is which
+rather than leaving it to be inferred from the ordering.
+
+**The feed is also full of results**, and none of them are read:
+`winner_driver_id`, `pole_winner_speed`, `average_speed`, `margin_of_victory`,
+and a `race_comments` field that is a written race report naming the winner in
+its first sentence. A pinned test asserts no winner reaches a stored session.
+
+**Known limitations:**
+
+1. **No end times**, so every duration is the assumed one from
+   `web/lib/time.ts`. That decides how long the board calls a race live, and a
+   500-mile race is a poor fit for any generic assumption.
+2. **Practice and qualifying are sometimes published at the same instant**, at
+   Nashville and Chicagoland. One class cannot be in two places at once, so
+   both are marked provisional by the general rule in `normalize.py` rather than
+   one of them being picked as the right one.
+3. **Two tracks needed new slugs rather than existing ones.** `las_vegas` here
+   was already the Strip circuit Formula 1 races on, and `miami` the Autodrome
+   rather than Homestead. Reusing either would have put a race at the wrong
+   circuit - the kind of mistake that reads as perfectly plausible.

@@ -278,7 +278,10 @@ accent_color = "#B08A00"
 sort_order = 80
 [series.source]
 adapter = "nascar"
-status = "unverified"
+status = "live"
+# One request carries the whole season for all three national series. This is
+# the feed behind nascar.com's own schedule page.
+url = "https://cf.nascar.com/cacher/{season}/race_list_basic.json"
 discovery_notes = "docs/sources.md#nascar"
 [[series.categories]]
 code = "nascar_cup"

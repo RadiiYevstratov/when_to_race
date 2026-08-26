@@ -579,6 +579,209 @@ iana_timezone = "America/New_York"
 latitude = 38.90
 longitude = -77.02
 
+# NASCAR's tracks. Mostly Eastern and Central, and the two that already had a
+# slug here were the wrong circuit: `las_vegas` is the Strip street course
+# Formula 1 runs on, not the Motor Speedway, and `miami` is the Autodrome, not
+# Homestead. Sharing either would have put a race at a circuit forty minutes and
+# one road course away from the real one.
+#
+# Charlotte, Daytona, Talladega, Indianapolis, Phoenix, Sonoma, Watkins Glen,
+# COTA and St. Petersburg are the same circuits already registered above, and
+# are reused rather than duplicated.
+
+[[venue]]
+slug = "atlanta"
+name = "Atlanta Motor Speedway"
+country_code = "US"
+city = "Hampton, GA"
+iana_timezone = "America/New_York"
+latitude = 33.39
+longitude = -84.31
+
+[[venue]]
+slug = "bowman_gray"
+name = "Bowman Gray Stadium"
+country_code = "US"
+city = "Winston-Salem, NC"
+iana_timezone = "America/New_York"
+latitude = 36.09
+longitude = -80.22
+
+[[venue]]
+slug = "bristol"
+name = "Bristol Motor Speedway"
+country_code = "US"
+city = "Bristol, TN"
+iana_timezone = "America/New_York"
+latitude = 36.52
+longitude = -82.26
+
+[[venue]]
+slug = "chicagoland"
+name = "Chicagoland Speedway"
+country_code = "US"
+city = "Joliet, IL"
+iana_timezone = "America/Chicago"
+latitude = 41.47
+longitude = -88.06
+
+[[venue]]
+slug = "darlington"
+name = "Darlington Raceway"
+country_code = "US"
+city = "Darlington, SC"
+iana_timezone = "America/New_York"
+latitude = 34.29
+longitude = -79.91
+
+[[venue]]
+slug = "dover"
+name = "Dover Motor Speedway"
+country_code = "US"
+city = "Dover, DE"
+iana_timezone = "America/New_York"
+latitude = 39.19
+longitude = -75.53
+
+[[venue]]
+slug = "homestead"
+name = "Homestead-Miami Speedway"
+country_code = "US"
+city = "Homestead, FL"
+iana_timezone = "America/New_York"
+latitude = 25.45
+longitude = -80.41
+
+[[venue]]
+slug = "iowa"
+name = "Iowa Speedway"
+country_code = "US"
+city = "Newton, IA"
+iana_timezone = "America/Chicago"
+latitude = 41.68
+longitude = -93.01
+
+[[venue]]
+slug = "kansas"
+name = "Kansas Speedway"
+country_code = "US"
+city = "Kansas City, KS"
+iana_timezone = "America/Chicago"
+latitude = 39.12
+longitude = -94.83
+
+[[venue]]
+slug = "las_vegas_speedway"
+name = "Las Vegas Motor Speedway"
+country_code = "US"
+# Not `las_vegas`, which is the Strip circuit Formula 1 races on.
+city = "Las Vegas, NV"
+iana_timezone = "America/Los_Angeles"
+latitude = 36.27
+longitude = -115.01
+
+[[venue]]
+slug = "lime_rock"
+name = "Lime Rock Park"
+country_code = "US"
+city = "Lakeville, CT"
+iana_timezone = "America/New_York"
+latitude = 41.93
+longitude = -73.38
+
+[[venue]]
+slug = "irp"
+name = "Lucas Oil Indianapolis Raceway Park"
+country_code = "US"
+# A separate track from the Motor Speedway, twenty miles away, and on the same
+# Indiana zone whose rules changed in 2006.
+city = "Brownsburg, IN"
+iana_timezone = "America/Indiana/Indianapolis"
+latitude = 39.80
+longitude = -86.34
+
+[[venue]]
+slug = "martinsville"
+name = "Martinsville Speedway"
+country_code = "US"
+city = "Ridgeway, VA"
+iana_timezone = "America/New_York"
+latitude = 36.63
+longitude = -79.85
+
+[[venue]]
+slug = "michigan"
+name = "Michigan International Speedway"
+country_code = "US"
+city = "Brooklyn, MI"
+iana_timezone = "America/Detroit"
+latitude = 42.07
+longitude = -84.24
+
+[[venue]]
+slug = "new_hampshire"
+name = "New Hampshire Motor Speedway"
+country_code = "US"
+city = "Loudon, NH"
+iana_timezone = "America/New_York"
+latitude = 43.36
+longitude = -71.46
+
+[[venue]]
+slug = "north_wilkesboro"
+name = "North Wilkesboro Speedway"
+country_code = "US"
+city = "North Wilkesboro, NC"
+iana_timezone = "America/New_York"
+latitude = 36.24
+longitude = -81.10
+
+[[venue]]
+slug = "pocono"
+name = "Pocono Raceway"
+country_code = "US"
+city = "Long Pond, PA"
+iana_timezone = "America/New_York"
+latitude = 41.06
+longitude = -75.51
+
+[[venue]]
+slug = "richmond"
+name = "Richmond Raceway"
+country_code = "US"
+city = "Richmond, VA"
+iana_timezone = "America/New_York"
+latitude = 37.59
+longitude = -77.42
+
+[[venue]]
+slug = "rockingham"
+name = "Rockingham Speedway"
+country_code = "US"
+city = "Rockingham, NC"
+iana_timezone = "America/New_York"
+latitude = 34.97
+longitude = -79.62
+
+[[venue]]
+slug = "san_diego"
+name = "San Diego Street Course"
+country_code = "US"
+# New for 2026 and no layout published, so the coordinates are the city.
+city = "San Diego, CA"
+iana_timezone = "America/Los_Angeles"
+latitude = 32.72
+longitude = -117.16
+
+[[venue]]
+slug = "texas"
+name = "Texas Motor Speedway"
+country_code = "US"
+city = "Fort Worth, TX"
+iana_timezone = "America/Chicago"
+latitude = 33.04
+longitude = -97.28
+
 # --- Middle East, Asia, Africa, Oceania -------------------------------------
 [[venue]]
 slug = "sakhir"
