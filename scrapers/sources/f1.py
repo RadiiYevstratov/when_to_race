@@ -5,10 +5,16 @@ this source emits them with different category codes. That is what makes the
 unified weekend view possible.
 
 They do not, however, come from one place. The Grand Prix feed carries Formula 1
-only; F2 and F3 are read from their own championships' race pages, and each
-attends a different subset of the season - 14 rounds and 9 in 2026. So the
-parser reads two formats, and then has to decide which Grand Prix each support
-session belongs to.
+only; F2, F3 and F1 Academy are read from their own championships' sites, and
+each attends a different subset of the season - 14 rounds, 9 and 6 in 2026. So
+the parser reads three formats, and then has to decide which Grand Prix each
+support session belongs to.
+
+The three formats are a consequence of three different websites, not of taste.
+The Grand Prix arrives as ICS. F2 and F3 server-render a timetable object into
+each round page. F1 Academy runs on a different platform again and puts its
+whole season, sessions included, in the __NEXT_DATA__ of one calendar page -
+which is why it needs no per-round fetching at all.
 
 The support pages are the official ones, and that was not the first choice. A
 community ICS feed covering both was tried first and turned out to be wrong by
@@ -68,11 +74,17 @@ _CATEGORY_PREFIX = re.compile(
     re.IGNORECASE,
 )
 
-# Which championship a support page belongs to. Site knowledge lives here
-# rather than in config, which only needs to know the season index to start at.
-_SUPPORT_SITES: tuple[tuple[str, str], ...] = (
-    ("fiaformula2.com", "f2"),
-    ("fiaformula3.com", "f3"),
+# Which championship a support URL belongs to, and how to reach its sessions.
+#
+#   "index"    - a season page listing rounds; each round is fetched separately.
+#   "calendar" - one page carrying the whole season, sessions included.
+#
+# Site knowledge lives here rather than in config, which only needs to know the
+# URL to start at.
+_SUPPORT_SITES: tuple[tuple[str, str, str], ...] = (
+    ("fiaformula2.com", "f2", "index"),
+    ("fiaformula3.com", "f3", "index"),
+    ("f1academy.com", "f1a", "calendar"),
 )
 
 # Round links on a season index: /en/racing/2026/monza
@@ -126,6 +138,19 @@ def strip_decoration(value: str) -> str:
         if unicodedata.category(char) not in ("So", "Cf") and char not in ("\ufe0f", "\ufe0e")
     )
     return re.sub(r"\s{2,}", " ", cleaned).strip()
+
+
+def _offset_of(value: Optional[str]):
+    """The timezone the source stated for a timestamp, for anchoring a date.
+
+    The circuit's own offset, which is what makes "which day is this" answerable
+    without knowing the venue's IANA zone.
+    """
+    try:
+        parsed = datetime.fromisoformat(value) if value else None
+    except ValueError:
+        parsed = None
+    return parsed.tzinfo if parsed and parsed.tzinfo else timezone.utc
 
 
 def _naive(value: Optional[str]) -> Optional[datetime]:
@@ -233,8 +258,13 @@ class FormulaOneSource(IcsSource):
         """
         urls = [self.feed_url.format(season=season)] if self.feed_url else []
 
-        for index_url in self.extra_urls:
-            resolved = index_url.format(season=season)
+        for configured in self.extra_urls:
+            resolved = configured.format(season=season)
+            if self._mode_for_url(resolved) == "calendar":
+                # The whole season is on this one page; nothing to expand.
+                urls.append(resolved)
+                continue
+
             try:
                 body = client.get(resolved).body.decode("utf-8", errors="replace")
             except Exception as error:  # noqa: BLE001 - one site must not sink the run
@@ -243,6 +273,13 @@ class FormulaOneSource(IcsSource):
             urls.extend(self._round_urls(resolved, body, season))
 
         return urls
+
+    @staticmethod
+    def _mode_for_url(url: str) -> Optional[str]:
+        for host, _code, mode in _SUPPORT_SITES:
+            if host in url:
+                return mode
+        return None
 
     @staticmethod
     def _round_urls(index_url: str, body: str, season: int) -> list[str]:
@@ -270,13 +307,16 @@ class FormulaOneSource(IcsSource):
 
         sessions = super().parse(calendars, series, venues, season)
         for document in pages:
-            sessions.extend(self._parse_support_page(document, series, season))
+            if self._mode_for_url(document.url) == "calendar":
+                sessions.extend(self._parse_season_calendar(document, series, season))
+            else:
+                sessions.extend(self._parse_support_page(document, series, season))
 
         return self._attach_support(sessions, series.headline_category.code)
 
     @staticmethod
     def _category_for_url(url: str) -> Optional[str]:
-        for host, code in _SUPPORT_SITES:
+        for host, code, _mode in _SUPPORT_SITES:
             if host in url:
                 return code
         return None
@@ -309,6 +349,153 @@ class FormulaOneSource(IcsSource):
                         return []
         return []
 
+    @staticmethod
+    def _next_data(text: str) -> Optional[dict]:
+        """The __NEXT_DATA__ payload of a server-rendered Next.js page."""
+        match = re.search(
+            r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', text, re.DOTALL
+        )
+        if match is None:
+            return None
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return None
+
+    @staticmethod
+    def _rounds_in(payload) -> list[dict]:
+        """Find the round list wherever the page's own shape happens to put it.
+
+        Located by what it contains rather than by a path through the object,
+        because the path is the site's private business and changes with any
+        redesign, while a list of things that each have Sessions is the thing we
+        actually want.
+        """
+        found: list[dict] = []
+
+        def walk(node, depth: int = 0) -> None:
+            if found or depth > 10:
+                return
+            if isinstance(node, list):
+                if node and isinstance(node[0], dict) and "Sessions" in node[0]:
+                    found.extend(node)
+                    return
+                for item in node:
+                    walk(item, depth + 1)
+            elif isinstance(node, dict):
+                for value in node.values():
+                    walk(value, depth + 1)
+
+        walk(payload)
+        return found
+
+    def _parse_season_calendar(
+        self, document: FetchedDocument, series: SeriesConfig, season: int
+    ) -> list[ParsedSession]:
+        """A whole season from one page.
+
+        Note what is deliberately dropped: every round carries the winner of
+        each session, and none of it is read. Results are out of scope and a
+        spoiler risk, and the cheapest place to honour that is at the point the
+        data enters rather than at the point it would be displayed.
+        """
+        category = self._category_for_url(document.url)
+        if category is None:
+            logger.warning("f1: %s belongs to no known support site", document.url)
+            return []
+
+        payload = self._next_data(document.text)
+        rounds = self._rounds_in(payload) if payload else []
+        if not rounds:
+            logger.warning("f1: no season calendar found on %s", document.url)
+            return []
+
+        results: list[ParsedSession] = []
+        skipped_seasons = 0
+
+        for entry in rounds:
+            round_name = entry.get("CircuitShortName") or entry.get("CircuitName") or "round"
+
+            for item in entry.get("Sessions") or []:
+                start = self._academy_time(item.get("SessionStartTime"))
+                if start is None:
+                    continue
+
+                # The page shows whichever season it is currently on. Anything
+                # from another year is dropped rather than quietly filed under
+                # the one being scraped.
+                if start.year != season:
+                    skipped_seasons += 1
+                    continue
+
+                name = (item.get("SessionName") or item.get("SessionShortName") or "").strip()
+                if not name:
+                    continue
+
+                end = self._academy_time(item.get("SessionEndTime"))
+                if end is not None and end <= start:
+                    end = None
+
+                unconfirmed = bool(item.get("Unconfirmed")) or bool(entry.get("Provisional"))
+
+                # An unconfirmed session here does not carry a rough time, it
+                # carries a placeholder: the American rounds sit at 01:00 and
+                # 02:00 local with no end, which is filler rather than a
+                # schedule. Showing that as a time would be inventing one, so
+                # the day is kept and the clock is dropped - the board renders
+                # these as "--:--", which is the truth.
+                #
+                # Anchored at midday rather than the placeholder instant so the
+                # date survives conversion into any viewer's timezone. The time
+                # is never displayed; it exists only to land on the right day.
+                if unconfirmed:
+                    anchor = start.astimezone(_offset_of(item.get("SessionStartTime")))
+                    start = anchor.replace(hour=12, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+                    end = None
+
+                results.append(
+                    ParsedSession(
+                        series_code=series.code,
+                        season=season,
+                        # Replaced by the Grand Prix this round runs alongside.
+                        event_name=round_name,
+                        category_code=category,
+                        raw_session_name=name,
+                        start_utc=start,
+                        end_utc=end,
+                        time_status="provisional" if unconfirmed else "confirmed",
+                        start_precision="day" if unconfirmed else "exact",
+                        source_url=document.url,
+                    )
+                )
+
+        if skipped_seasons:
+            logger.info(
+                "f1: %d %s sessions on %s belong to another season and were skipped",
+                skipped_seasons,
+                category,
+                document.url,
+            )
+        return results
+
+    @staticmethod
+    def _academy_time(value: Optional[str]) -> Optional[datetime]:
+        """An offset-carrying timestamp, as an absolute instant.
+
+        The site states the circuit's offset outright ("+08:00"), so unlike the
+        Grand Prix feed there is nothing to infer - and unlike WEC the offset is
+        the circuit's rather than a content system's.
+        """
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return None
+        return parsed.astimezone(timezone.utc)
+
     def _parse_support_page(
         self, document: FetchedDocument, series: SeriesConfig, season: int
     ) -> list[ParsedSession]:
@@ -325,6 +512,23 @@ class FormulaOneSource(IcsSource):
         # Placeholder only: `_attach_support` replaces it with the Grand Prix
         # this round actually runs alongside.
         round_name = document.url.rstrip("/").rsplit("/", 1)[-1]
+
+        # A round whose every session starts at exactly midnight local has not
+        # been scheduled yet - Baku, Qatar and Abu Dhabi are all published as
+        # 00:00 to 01:00 for practice, qualifying and both races. No race
+        # weekend runs four sessions at midnight, so this is the site's filler
+        # showing through, and passing it on as a time would be inventing one.
+        #
+        # Only the whole round counts, never a single session: a lone midnight
+        # start could be real at a night race, but four of them cannot be.
+        starts = [e.get("startTime") for e in entries if e.get("startTime")]
+        placeholder_round = bool(starts) and all(t[11:].startswith("00:00") for t in starts)
+        if placeholder_round:
+            logger.info(
+                "f1: %s publishes no times yet for %s; keeping the days only",
+                category,
+                round_name,
+            )
 
         results: list[ParsedSession] = []
         for entry in entries:
@@ -353,6 +557,13 @@ class FormulaOneSource(IcsSource):
                 )
                 local_end = None
 
+            if placeholder_round and local_start is not None:
+                # Anchored at midday so the date survives conversion into any
+                # viewer's timezone. Never displayed - the board renders a
+                # day-precision session as "--:--".
+                local_start = local_start.replace(hour=12, minute=0, second=0, microsecond=0)
+                local_end = None
+
             results.append(
                 ParsedSession(
                     series_code=series.code,
@@ -366,6 +577,8 @@ class FormulaOneSource(IcsSource):
                     local_end=local_end,
                     local_timezone=entry.get("timezone") or None,
                     sequence_hint=entry.get("sessionNumber") or None,
+                    time_status="provisional" if placeholder_round else "confirmed",
+                    start_precision="day" if placeholder_round else "exact",
                     source_url=document.url,
                 )
             )

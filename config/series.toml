@@ -30,6 +30,10 @@ url = "https://f1.vidmar.net/calendar.ics"
 extra_urls = [
   "https://www.fiaformula2.com/en/racing/{season}",
   "https://www.fiaformula3.com/en/racing/{season}",
+  # F1 Academy runs on a different platform and puts its whole season, sessions
+  # included, in one page's __NEXT_DATA__ - so this one is fetched directly
+  # rather than expanded into per-round pages.
+  "https://www.f1academy.com/Racing-Series/Calendar",
 ]
 discovery_notes = "docs/sources.md#formula-1"
 [[series.categories]]

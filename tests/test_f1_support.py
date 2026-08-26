@@ -16,6 +16,7 @@ site redesign into a failing test rather than a wrong time on someone's phone.
 import json
 import unittest
 from datetime import datetime, timezone
+from typing import Optional
 from pathlib import Path
 
 from scrapers.config import load_series, load_venues
@@ -224,12 +225,29 @@ class SupportSourceConfigTests(unittest.TestCase):
     def test_the_support_calendars_are_configured(self):
         """A silent loss of these would look like a working F1-only site."""
         joined = " ".join(load_series()["f1"].source.extra_urls)
-        for expected in ("fiaformula2.com", "fiaformula3.com"):
+        for expected in ("fiaformula2.com", "fiaformula3.com", "f1academy.com"):
             self.assertIn(expected, joined)
 
-    def test_the_season_index_is_templated(self):
+    def test_a_season_index_is_templated(self):
+        """A page listing one season's rounds must be asked for the right year.
+
+        A whole-season calendar page need not be - it shows whichever season the
+        site is on, and the parser drops anything from another year rather than
+        filing it under the one being scraped.
+        """
+        from scrapers.sources.f1 import FormulaOneSource
+
         for url in load_series()["f1"].source.extra_urls:
-            self.assertIn("{season}", url)
+            if FormulaOneSource._mode_for_url(url) == "index":
+                self.assertIn("{season}", url, url)
+
+    def test_every_support_url_belongs_to_a_known_site(self):
+        """An unrecognised host has no category, so its sessions are dropped."""
+        from scrapers.sources.f1 import FormulaOneSource
+
+        for url in load_series()["f1"].source.extra_urls:
+            self.assertIsNotNone(FormulaOneSource._category_for_url(url), url)
+            self.assertIsNotNone(FormulaOneSource._mode_for_url(url), url)
 
     def test_round_links_are_read_off_a_season_index(self):
         body = """
@@ -252,3 +270,231 @@ class SupportSourceConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def academy_session(
+    name: str,
+    start: str,
+    end: Optional[str] = None,
+    unconfirmed: bool = False,
+    winner: str = "",
+) -> dict:
+    """One F1 Academy session, with the result fields the real page carries."""
+    return {
+        "SessionId": 203,
+        "SessionCode": name.upper().replace(" ", "_"),
+        "SessionName": name,
+        "SessionShortName": name[:2].upper(),
+        "Unconfirmed": unconfirmed,
+        # Unlike the Grand Prix feed, this one states the circuit's offset.
+        "SessionStartTime": start,
+        "SessionEndTime": end,
+        "SessionResultsAvailable": bool(winner),
+        "WinnerId": 42 if winner else 0,
+        "WinnerName": winner,
+        "WinnerFullName": winner,
+        "WinnerTLA": winner[:3].upper(),
+    }
+
+
+def academy_round(circuit: str, sessions: list[dict], provisional: bool = False) -> dict:
+    return {
+        "RaceId": 22,
+        "RoundNumber": 1,
+        "CircuitId": 14,
+        "CountryName": "Spain",
+        "CircuitName": f"{circuit} International Circuit",
+        "CircuitShortName": circuit,
+        "Provisional": provisional,
+        "State": "PRE-RACE",
+        "Sessions": sessions,
+    }
+
+
+def academy_page(rounds: list[dict]) -> bytes:
+    """The whole season in one page's __NEXT_DATA__, as the real site ships it."""
+    payload = {"props": {"pageProps": {"races": rounds}}}
+    blob = json.dumps(payload, separators=(",", ":"))
+    return (
+        '<html><body><script id="__NEXT_DATA__" type="application/json">'
+        f"{blob}</script></body></html>"
+    ).encode()
+
+
+class AcademyCalendarTests(unittest.TestCase):
+    """F1 Academy, which is a third format rather than a variation on the other two.
+
+    It runs on a different platform from F2 and F3: one calendar page carrying
+    the entire season, sessions included, so there are no round pages to fetch.
+    Its times also arrive with the circuit's offset attached, which makes them
+    absolute - the one thing here that needs no inference at all.
+    """
+
+    URL = "https://www.f1academy.com/Racing-Series/Calendar"
+
+    def setUp(self):
+        self.series = load_series()["f1"]
+        self.venues = load_venues()
+        self.source = get_source("f1", feed_url="https://example.invalid/f1.ics")
+
+    def _events(self, rounds: list[dict]):
+        documents = [
+            FetchedDocument(url="https://example.invalid/f1.ics", body=GRAND_PRIX),
+            FetchedDocument(url=self.URL, body=academy_page(rounds)),
+        ]
+        parsed = self.source.parse(documents, self.series, self.venues, SEASON)
+        return {event.slug: event for event in normalize(parsed, self.series, self.venues)}
+
+    def _academy(self, event):
+        return [s for s in event.sessions if s.category_code == "f1a"]
+
+    def test_the_season_page_needs_no_round_pages(self):
+        """The URL is taken as it stands; only the F2 and F3 sites get expanded."""
+        self.assertEqual(FormulaOneSource._mode_for_url(self.URL), "calendar")
+        self.assertEqual(
+            FormulaOneSource._mode_for_url("https://www.fiaformula2.com/en/racing/2026"),
+            "index",
+        )
+
+    def test_a_round_joins_the_grand_prix_it_runs_at(self):
+        events = self._events([
+            academy_round("Barcelona", [
+                academy_session("Free Practice", "2026-06-12T09:10:00+02:00", "2026-06-12T09:50:00+02:00"),
+                academy_session("Race 1", "2026-06-13T15:00:00+02:00", "2026-06-13T15:30:00+02:00"),
+            ]),
+        ])
+        names = [s.display_name for s in self._academy(events["spanish-gp"])]
+        self.assertEqual(names, ["Free Practice", "Race 1"])
+
+    def test_the_stated_offset_is_honoured(self):
+        """Plus two hours means plus two; nothing is inferred from a venue table."""
+        events = self._events([
+            academy_round("Barcelona", [
+                academy_session("Free Practice", "2026-06-12T09:10:00+02:00", "2026-06-12T09:50:00+02:00"),
+            ]),
+        ])
+        parsed = self._academy(events["spanish-gp"])[0]
+        self.assertEqual(parsed.start_utc, datetime(2026, 6, 12, 7, 10, tzinfo=timezone.utc))
+        self.assertEqual(parsed.end_utc, datetime(2026, 6, 12, 7, 50, tzinfo=timezone.utc))
+
+    def test_the_winner_never_enters_the_pipeline(self):
+        """Results are a spoiler, and the cheapest place to refuse them is here.
+
+        Every round on the real page names the winner of each completed session.
+        Reading it and then declining to display it would leave it one careless
+        template away from the board.
+        """
+        events = self._events([
+            academy_round("Barcelona", [
+                academy_session(
+                    "Race 1",
+                    "2026-06-13T15:00:00+02:00",
+                    "2026-06-13T15:30:00+02:00",
+                    winner="A. Palmowski",
+                ),
+            ]),
+        ])
+        stored = repr(vars(self._academy(events["spanish-gp"])[0]))
+        self.assertNotIn("Palmowski", stored)
+
+    def test_an_unconfirmed_round_keeps_its_day_and_drops_its_clock(self):
+        """01:00 on a Thursday is the site's filler, not a session.
+
+        Austin and Las Vegas are published this way: unconfirmed, an hour that
+        nobody will race at, and no end time. Storing 01:00 would put a wrong
+        time on the board; dropping the round would hide a race weekend that is
+        genuinely happening. The date is the part the source actually knows.
+        """
+        events = self._events([
+            academy_round("Barcelona", [
+                academy_session("Free Practice", "2026-06-12T01:00:00+02:00", None, unconfirmed=True),
+            ]),
+        ])
+        parsed = self._academy(events["spanish-gp"])[0]
+        self.assertEqual(parsed.start_precision, "day")
+        self.assertEqual(parsed.time_status, "provisional")
+        self.assertIsNone(parsed.end_utc)
+        # Anchored at local midday so the date survives any viewer's timezone,
+        # rather than at a midnight that lands a day earlier in the Americas.
+        self.assertEqual(parsed.start_utc, datetime(2026, 6, 12, 10, 0, tzinfo=timezone.utc))
+
+    def test_another_season_is_dropped_rather_than_refiled(self):
+        """The page shows whichever season it is on, which is not always ours."""
+        events = self._events([
+            academy_round("Barcelona", [
+                academy_session("Free Practice", "2026-06-12T09:10:00+02:00", "2026-06-12T09:50:00+02:00"),
+                academy_session("Race 1", "2025-06-13T15:00:00+02:00", "2025-06-13T15:30:00+02:00"),
+            ]),
+        ])
+        self.assertEqual(
+            [s.display_name for s in self._academy(events["spanish-gp"])], ["Free Practice"]
+        )
+
+    def test_an_end_that_precedes_its_start_is_discarded(self):
+        events = self._events([
+            academy_round("Barcelona", [
+                academy_session("Free Practice", "2026-06-12T09:10:00+02:00", "2026-06-12T08:50:00+02:00"),
+            ]),
+        ])
+        self.assertIsNone(self._academy(events["spanish-gp"])[0].end_utc)
+
+    def test_a_page_without_the_payload_yields_nothing(self):
+        document = FetchedDocument(url=self.URL, body=b"<html><body>nope</body></html>")
+        self.assertEqual(self.source._parse_season_calendar(document, self.series, SEASON), [])
+
+
+class PlaceholderRoundTests(unittest.TestCase):
+    """A whole F2 round published at midnight is filler showing through.
+
+    Baku, Qatar and Abu Dhabi all arrive as 00:00 to 01:00 for practice, for
+    qualifying and for both races. No race weekend runs four sessions at
+    midnight, so the times are not times - but the days are real, and so is
+    the round.
+    """
+
+    def setUp(self):
+        self.series = load_series()["f1"]
+        self.venues = load_venues()
+        self.source = get_source("f1", feed_url="https://example.invalid/f1.ics")
+
+    def _f2(self, sessions: list[dict]):
+        documents = [
+            FetchedDocument(url="https://example.invalid/f1.ics", body=GRAND_PRIX),
+            FetchedDocument(
+                url="https://www.fiaformula2.com/en/racing/2026/barcelona",
+                body=page(sessions),
+            ),
+        ]
+        parsed = self.source.parse(documents, self.series, self.venues, SEASON)
+        events = {event.slug: event for event in normalize(parsed, self.series, self.venues)}
+        return [s for s in events["spanish-gp"].sessions if s.category_code == "f2"]
+
+    def test_a_round_that_is_all_midnight_keeps_only_its_days(self):
+        sessions = self._f2([
+            session("Practice", "2026-06-12T00:00:00", "2026-06-12T01:00:00"),
+            session("Qualifying", "2026-06-12T00:00:00", "2026-06-12T01:00:00", 1),
+            session("Sprint Race", "2026-06-13T00:00:00", "2026-06-13T01:00:00", 2),
+            session("Feature Race", "2026-06-14T00:00:00", "2026-06-14T01:00:00", 3),
+        ])
+        self.assertEqual(len(sessions), 4)
+        for item in sessions:
+            with self.subTest(item.display_name):
+                self.assertEqual(item.start_precision, "day")
+                self.assertEqual(item.time_status, "provisional")
+                self.assertIsNone(item.end_utc)
+        # The days are the part the source does know, and they survive intact.
+        self.assertEqual(
+            [s.start_utc.date().isoformat() for s in sessions],
+            ["2026-06-12", "2026-06-12", "2026-06-13", "2026-06-14"],
+        )
+
+    def test_a_single_midnight_session_is_left_alone(self):
+        """One midnight start can be real at a night race; four cannot."""
+        sessions = self._f2([
+            session("Practice", "2026-06-12T00:00:00", "2026-06-12T01:00:00"),
+            session("Feature Race", "2026-06-14T09:00:00", "2026-06-14T10:00:00", 2),
+        ])
+        for item in sessions:
+            with self.subTest(item.display_name):
+                self.assertEqual(item.start_precision, "exact")
+                self.assertEqual(item.time_status, "confirmed")
