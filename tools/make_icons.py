@@ -56,6 +56,12 @@ def render(size: int, inset: int = 8) -> Image.Image:
 
 def main() -> None:
     render(48).save("web/app/favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)])
+
+    # A dedicated raster for search engines. Google asks for a square that is a
+    # multiple of 48 and picks the icon itself; the .ico holds a 48 but which
+    # entry of a multi-size file gets read is not something to leave to chance,
+    # and a plain PNG is the format every crawler handles without argument.
+    render(96).convert("RGB").save("web/app/icon.png")
     # iOS home screen: full bleed and opaque, because the system applies its own mask.
     render(180).convert("RGB").save("web/app/apple-icon.png")
     for s in (192, 512):
