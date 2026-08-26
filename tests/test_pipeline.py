@@ -441,12 +441,14 @@ class EndToEndTests(unittest.TestCase):
 
     def test_the_raw_response_is_snapshotted_before_parsing(self):
         result = self._run()
-        self.assertEqual(len(result.snapshots), 1)
+        # One snapshot per fetched document: the Grand Prix feed and a
+        # support round page for each of F2 and F3.
+        self.assertEqual(len(result.snapshots), 3)
         self.assertTrue(Path(result.snapshots[0].storage_path).exists())
 
     def test_snapshots_are_linked_to_the_run(self):
         self._run()
-        self.assertEqual(len(self.repository.snapshots), 1)
+        self.assertEqual(len(self.repository.snapshots), 3)
         run_id, url, digest = self.repository.snapshots[0]
         self.assertEqual(run_id, 1)
         self.assertTrue(url.startswith("fixture://"))
@@ -530,8 +532,10 @@ class ValidationTests(unittest.TestCase):
         from scrapers.sources.base import FetchedDocument
         from scrapers.sources.fixture import read_fixture
 
-        url = source.urls(SEASON)[0]
-        documents = [FetchedDocument(url=url, body=read_fixture(url), content_type="text/calendar")]
+        urls = source.resolve_urls(SEASON)
+        documents = [
+            FetchedDocument(url=url, body=read_fixture(url)) for url in urls
+        ]
         self.events = normalize(source.parse(documents, self.series, self.venues, SEASON), self.series, self.venues)
 
     def test_the_fixture_is_clean(self):

@@ -4,11 +4,19 @@ All four categories share a race weekend and must land on the same `event`, so
 this source emits them with different category codes. That is what makes the
 unified weekend view possible.
 
-They do not, however, come from one feed. The Grand Prix feed carries Formula 1
-only; F2, F3 and F1 Academy are published separately, in a different summary
-shape, and each attends a different subset of the season - 14 rounds, 9 and 6
-respectively in 2026. So the parser reads two dialects, and then has to decide
-which Grand Prix each support session belongs to.
+They do not, however, come from one place. The Grand Prix feed carries Formula 1
+only; F2 and F3 are read from their own championships' race pages, and each
+attends a different subset of the season - 14 rounds and 9 in 2026. So the
+parser reads two formats, and then has to decide which Grand Prix each support
+session belongs to.
+
+The support pages are the official ones, and that was not the first choice. A
+community ICS feed covering both was tried first and turned out to be wrong by
+as much as seven hours on individual sessions, in no consistent direction -
+close enough to look right on a schedule, far enough to make someone miss a
+race. The official pages server-render the same JSON their own timetable draws
+from, including an IANA zone and an explicit offset per session, so there is
+nothing left to infer.
 
 That decision is made on time, not on names, and the difference matters. The
 support feeds name their rounds "Australian", "USA", "Zandvoort", "Spanish" -
@@ -26,6 +34,7 @@ shape it expects is explicit and checkable rather than assumed.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import unicodedata
@@ -59,14 +68,15 @@ _CATEGORY_PREFIX = re.compile(
     re.IGNORECASE,
 )
 
-# The support feeds write "F2: Feature (Italian)" - category, session, then the
-# round in brackets. Nothing like the Grand Prix feed's "Italian GP: Race", and
-# splitting it on ": " like that one would yield an event called "F2".
-_SUPPORT_SUMMARY = re.compile(
-    r"^\s*(?:f1[\s-]*academy|formula\s*1[\s-]*academy|f2|f3|formula\s*[23])\s*:\s*"
-    r"(?P<session>.+?)\s*\((?P<round>[^)]+)\)\s*$",
-    re.IGNORECASE,
+# Which championship a support page belongs to. Site knowledge lives here
+# rather than in config, which only needs to know the season index to start at.
+_SUPPORT_SITES: tuple[tuple[str, str], ...] = (
+    ("fiaformula2.com", "f2"),
+    ("fiaformula3.com", "f3"),
 )
+
+# Round links on a season index: /en/racing/2026/monza
+_ROUND_LINK = re.compile(r"/[a-z]{2}/racing/(?P<season>\d{4})/(?P<round>[a-z0-9-]+)")
 
 # How far a support session may sit from a Grand Prix and still count as part of
 # it. Three days rather than one because Monaco runs Formula 3 on the Thursday,
@@ -116,6 +126,16 @@ def strip_decoration(value: str) -> str:
         if unicodedata.category(char) not in ("So", "Cf") and char not in ("\ufe0f", "\ufe0e")
     )
     return re.sub(r"\s{2,}", " ", cleaned).strip()
+
+
+def _naive(value: Optional[str]) -> Optional[datetime]:
+    """"2026-09-04T10:00:00" as a naive datetime, to be read in the page's zone."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value).replace(tzinfo=None)
+    except ValueError:
+        return None
 
 
 class FormulaOneSource(IcsSource):
@@ -190,13 +210,6 @@ class FormulaOneSource(IcsSource):
 
     def split_summary(self, summary: str) -> tuple[str, str]:
         text = strip_decoration(summary)
-
-        # A support entry names its round in brackets. That name is provisional:
-        # `parse` replaces it with the Grand Prix this session actually runs at.
-        support = _SUPPORT_SUMMARY.match(text)
-        if support:
-            return support.group("round").strip(), support.group("session").strip()
-
         for separator in (" - ", " – ", " — ", ": "):
             if separator in text:
                 head, _, tail = text.rpartition(separator)
@@ -210,7 +223,40 @@ class FormulaOneSource(IcsSource):
         text = re.sub(r"\s{2,}", " ", text)
         return text.strip(" -–—:")
 
-    # --- attaching the support championships ------------------------------
+    # --- fetching --------------------------------------------------------
+    def resolve_urls(self, season: int, client) -> list[str]:
+        """The Grand Prix feed, plus one page per support round.
+
+        Which rounds a support championship attends changes from season to
+        season, so the list is read from its own calendar rather than written
+        down here and left to rot.
+        """
+        urls = [self.feed_url.format(season=season)] if self.feed_url else []
+
+        for index_url in self.extra_urls:
+            resolved = index_url.format(season=season)
+            try:
+                body = client.get(resolved).body.decode("utf-8", errors="replace")
+            except Exception as error:  # noqa: BLE001 - one site must not sink the run
+                logger.warning("f1: support index %s unavailable: %s", resolved, error)
+                continue
+            urls.extend(self._round_urls(resolved, body, season))
+
+        return urls
+
+    @staticmethod
+    def _round_urls(index_url: str, body: str, season: int) -> list[str]:
+        origin = "/".join(index_url.split("/")[:3])
+        rounds: list[str] = []
+        for match in _ROUND_LINK.finditer(body):
+            if match.group("season") != str(season):
+                continue
+            url = f"{origin}{match.group(0)}"
+            if url != index_url and url not in rounds:
+                rounds.append(url)
+        return rounds
+
+    # --- parsing ---------------------------------------------------------
     def parse(
         self,
         documents: Iterable[FetchedDocument],
@@ -218,8 +264,112 @@ class FormulaOneSource(IcsSource):
         venues: dict[str, VenueConfig],
         season: int,
     ) -> list[ParsedSession]:
-        sessions = super().parse(documents, series, venues, season)
+        documents = list(documents)
+        calendars = [d for d in documents if d.text.lstrip().startswith("BEGIN:VCALENDAR")]
+        pages = [d for d in documents if d not in calendars]
+
+        sessions = super().parse(calendars, series, venues, season)
+        for document in pages:
+            sessions.extend(self._parse_support_page(document, series, season))
+
         return self._attach_support(sessions, series.headline_category.code)
+
+    @staticmethod
+    def _category_for_url(url: str) -> Optional[str]:
+        for host, code in _SUPPORT_SITES:
+            if host in url:
+                return code
+        return None
+
+    @staticmethod
+    def _embedded_sessions(text: str) -> list[dict]:
+        """Pull the timetable out of the server-rendered page.
+
+        The page ships the same JSON its own timetable renders from, escaped
+        into the HTML. Bracket-matched rather than regexed: the array contains
+        nested objects, and a lazy match would stop at the first inner bracket.
+        """
+        body = text.replace('\\"', '"').replace("\\u0026", "&")
+        # Tolerant of whitespace around the colon: the page ships compact JSON
+        # today, but a pretty-printed build should not silently empty the board.
+        marker = re.search(r'"meetingSessions"\s*:\s*\[', body)
+        if marker is None:
+            return []
+        start = marker.end() - 1
+        depth = 0
+        for end in range(start, len(body)):
+            if body[end] == "[":
+                depth += 1
+            elif body[end] == "]":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(body[start : end + 1])
+                    except json.JSONDecodeError:
+                        return []
+        return []
+
+    def _parse_support_page(
+        self, document: FetchedDocument, series: SeriesConfig, season: int
+    ) -> list[ParsedSession]:
+        category = self._category_for_url(document.url)
+        if category is None:
+            logger.warning("f1: %s belongs to no known support site", document.url)
+            return []
+
+        entries = self._embedded_sessions(document.text)
+        if not entries:
+            logger.warning("f1: no timetable found on %s", document.url)
+            return []
+
+        # Placeholder only: `_attach_support` replaces it with the Grand Prix
+        # this round actually runs alongside.
+        round_name = document.url.rstrip("/").rsplit("/", 1)[-1]
+
+        results: list[ParsedSession] = []
+        for entry in entries:
+            start = entry.get("startTime")
+            if not start:
+                continue
+            name = (entry.get("shortName") or entry.get("session") or "").strip()
+            if not name:
+                continue
+
+            local_start = _naive(start)
+            local_end = _naive(entry.get("endTime"))
+
+            # The published end is occasionally earlier than the published
+            # start - F3 at the Red Bull Ring has a sprint race ending the day
+            # before it begins. The start is still credible, so only the end is
+            # dropped: a session with no end time is already handled everywhere,
+            # and correcting the date would be inventing one.
+            if local_start and local_end and local_end <= local_start:
+                logger.warning(
+                    "f1: %s %r ends before it starts (%s -> %s); end discarded",
+                    category,
+                    name,
+                    start,
+                    entry.get("endTime"),
+                )
+                local_end = None
+
+            results.append(
+                ParsedSession(
+                    series_code=series.code,
+                    season=season,
+                    event_name=round_name,
+                    category_code=category,
+                    raw_session_name=name,
+                    # Naive local time plus the circuit's own zone, which the
+                    # page states outright - no offset arithmetic to get wrong.
+                    local_start=local_start,
+                    local_end=local_end,
+                    local_timezone=entry.get("timezone") or None,
+                    sequence_hint=entry.get("sessionNumber") or None,
+                    source_url=document.url,
+                )
+            )
+        return results
 
     def _attach_support(
         self, sessions: list[ParsedSession], headline: str

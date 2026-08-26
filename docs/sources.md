@@ -178,47 +178,72 @@ time.)*
 - LOCATION is a bare circuit or city name ("Monza", "Melbourne", "Madrid"),
   mapped through `venue_aliases`.
 
-#### F2, F3 and F1 Academy
+#### F2 and F3
 
-**Status: live.** Verified 25 August 2026.
+**Status: live.** Verified 26 August 2026. Replaced a community ICS feed that
+was serving wrong times - see "The feed that had to be replaced" below.
 
 | Field | Finding |
 |---|---|
-| Endpoints | `https://files-f2.motorsportcalendars.com/f2-calendar_p_q_sprint_feature.ics`, the matching `files-f3` host, and `files-f1-academy` with `f1-academy-calendar_fp1_fp2_qualifying1_qualifying2_race1_race2_race3.ics` |
-| Type | ICS feeds, published for public subscription |
-| Official? | **No.** motorsportcalendars.com, the publisher behind f1calendar.com. Open source at `github.com/sportstimes/f1` |
-| Discovery | The filenames encode the session types selected in the generator UI at f2calendar.com/generate. They are built client-side, so the URL only appears once the form is submitted |
-| **Timezone convention** | **All times UTC-stamped**, like the Grand Prix feed |
-| End times | **Present on every entry**, unlike WEC and WorldSBK |
-| Coverage 2026 | F2 at 14 rounds (56 sessions), F3 at 9 (36), F1 Academy at 6 (25) |
-| robots.txt | The file hosts return **HTTP 500** for `/robots.txt`. A 500 is not a disallow, and the client treats it as such; the generator UI exists precisely to hand these URLs out for subscription |
-| Auth | None |
-| Confidence | Medium-high. Long-running open-source project with a named maintainer, wider than one person's side project |
+| Endpoints | `https://www.fiaformula2.com/en/racing/{season}` and the same path on `fiaformula3.com`. These are season **indexes**: the adapter reads the round links out of each and fetches one page per round |
+| Type | Server-rendered HTML carrying the timetable as escaped JSON, under `race.meetingSessions` |
+| Official? | **Yes.** The championships' own sites, operated by Formula Motorsport Limited |
+| **Timezone convention** | Naive local time plus **both** an IANA zone (`Europe/Rome`) and an explicit offset (`+02:00`) per session. Nothing to infer, and the two agree |
+| End times | Present on every session |
+| Sequence | `sessionNumber` is carried through as `sequence_hint`. This matters: F3 runs **two** qualifying sessions, A and B, which share a category and a session type, so sequence is the only thing separating them in the upsert key |
+| Coverage 2026 | F2 at 14 rounds, F3 at 9. Which rounds they attend is read from the calendar each run rather than written down here |
+| robots.txt | Neither site serves one - `/robots.txt` returns their 404 page. There is no directive to honour or to breach |
+| Auth | None. There *is* an `api.formula1.com` endpoint behind a client-side key, and it returns the same data, but the public page already carries it - reading the page needs no key that was not issued to us |
+| Confidence | High. Official, structured, and the timetable is the same object their own page renders from |
 
-**The summary shape is a second dialect**, and `scrapers/sources/f1.py` reads
-both: `F2: Feature (Italian)` - category, session, then the round in brackets -
-against the Grand Prix feed's `Italian GP: Race`. Splitting the support form on
-`": "` the way the main feed is split would produce an event called "F2".
+**Format quirks, all handled in `scrapers/sources/f1.py`:**
+
+- The payload is escaped into the HTML, so quotes arrive as `\"`. The fixtures
+  keep that escaping, because unescaping them first would stop testing the part
+  that actually breaks.
+- The timetable array is bracket-matched rather than regexed - it contains
+  nested objects, and a lazy match stops at the first inner bracket.
+- **A published end time is occasionally earlier than its start.** F3 at the Red
+  Bull Ring has a sprint race ending the day before it begins. The start is
+  still credible, so only the end is discarded; a session without an end is
+  already handled everywhere, and correcting the date would be inventing one.
 
 **Support sessions are attached to a Grand Prix by time, not by name.** This is
-the load-bearing decision in the adapter. The round names in these feeds cannot
-be matched to the Grand Prix names:
+the load-bearing decision in the adapter, and it predates this source. Round
+names cannot be matched to Grand Prix names: 2026 has two Spanish rounds, and
+these sites call them `barcelona` and `madrid` while the Grand Prix feed calls
+them "Spanish GP" and "Madrid GP". A session that runs inside a Grand Prix
+weekend belongs to it, and unlike a name that is checkable. The window is three
+days rather than one because **Monaco runs Formula 3 on the Thursday**: at one
+day that practice missed its weekend by five minutes. Anything with no Grand
+Prix inside the window is dropped and logged, never guessed onto the nearest.
 
-- They are shortened and inconsistent: "Australian", "USA", "Zandvoort", "Canada".
-- "USA" means **Miami**, not the United States Grand Prix at Austin. Mapping it
-  by name would have put those sessions on the wrong weekend, on the wrong side
-  of the Atlantic seaboard, six months out.
-- 2026 has two Spanish rounds, and the feeds call them "Spanish" and "Spanish
-  Grand Prix" - both of which slugify to the same thing.
+#### The feed that had to be replaced
 
-A session that runs inside a Grand Prix weekend belongs to it, and unlike a name
-that is checkable. The adapter builds a span per Grand Prix from its own
-sessions and takes the nearest, within three days. Three rather than one because
-**Monaco runs Formula 3 on the Thursday**: with a one-day window that practice
-missed its weekend by five minutes. A session with no Grand Prix inside the
-window is dropped and logged, never guessed onto the closest thing.
+F2, F3 and F1 Academy were first taken from motorsportcalendars.com, the
+publisher behind f1calendar.com. It was convenient - one ICS per championship,
+the same shape as the Grand Prix feed - and it was **wrong**.
 
-Against the live feeds this places all 117 support sessions with none unmatched.
+At Monza its F2 practice was 1h55m late, its F2 sprint 3h40m early, and its F3
+sprint **7h15m** out. Not a timezone offset, which would at least be uniform and
+correctable; the errors ran in both directions and differed per session. It also
+collapsed F3's two qualifying sessions into one, losing a session outright.
+
+Two lessons worth keeping:
+
+1. **A plausible schedule is the hardest kind of wrong to notice.** Every time
+   it published was a real time of day on the right date at the right circuit.
+   Nothing in the pipeline could have caught it - the validators check internal
+   consistency, and it was internally consistent. It took a person comparing it
+   against the official page.
+2. **Convenience of format is not evidence of quality.** The ICS was easier to
+   consume than the official pages and that is the only thing it was better at.
+
+**F1 Academy has no source and is not published.** Its 25 sessions came from the
+same feed and are now gone rather than left in on the assumption that they were
+the accurate part of a source that was wrong everywhere else. Their own site
+does not use the `/en/racing/{season}` layout the F2 and F3 sites share, so it
+needs its own discovery.
 
 **Known limitations, in order of how much they matter:**
 
@@ -226,14 +251,16 @@ Against the live feeds this places all 117 support sessions with none unmatched.
    showing a provisional time as confirmed, and these sources make that
    impossible to avoid - they do not distinguish them. Anything better here
    would need a different source.
-2. **Two publishers, neither official.** The Grand Prix and its support races
-   now come from different unofficial projects. Either can go stale
-   independently, and the 48-hour marker is per series, not per feed - so a
-   dead support feed would show as a quietly F1-only season rather than as an
-   error. Worth a per-category staleness check if this recurs.
+2. **Two publishers, and the Grand Prix one is still unofficial.** F2 and F3
+   now come from their own championships; Formula 1 itself does not. Either
+   can go stale independently, and the 48-hour marker is per series, not per
+   source - so a dead support source shows as a quietly F1-only season rather
+   than as an error. Worth a per-category staleness check.
 3. **Support rounds depend on the Grand Prix feed.** Attachment needs Grand
    Prix weekends to attach to. If the main feed fails, support sessions are
    dropped rather than allowed to invent half-empty events of their own.
+4. **F1 Academy is not covered at all**, having been removed with the feed that
+   was serving it wrong times.
 4. **Two Spanish rounds from 2026** - Barcelona and Madrid. A `"spain"` venue
    alias was deliberately removed: it would have silently sent Madrid sessions
    to the wrong circuit. Watch for this pattern in every other series.
