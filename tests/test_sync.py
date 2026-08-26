@@ -140,6 +140,58 @@ def existing_sessions(count, *, start=datetime(2026, 9, 6, tzinfo=timezone.utc))
     ]
 
 
+class EventRetirementTests(unittest.TestCase):
+    """An event that has lost every session is not a race weekend any more.
+
+    It only ever gets created alongside sessions, so an empty one means they
+    all went away: a round dropped from the calendar, or - the way this was
+    found - a slug that changed and left the old event behind with nothing in
+    it. Left live it is a page with no schedule on it and a URL in the sitemap
+    promising one.
+    """
+
+    def setUp(self):
+        self.series = load_series()["f1"]
+        self.venues = load_venues()
+
+    def _apply(self, repository, sessions, run_id):
+        events = normalize(sessions, self.series, self.venues)
+        plan = diff_sessions(repository.load_existing_sessions("f1", 2026), events)
+        return repository.apply(plan, "f1", 2026, run_id=run_id)
+
+    def test_an_event_that_loses_every_session_is_retired(self):
+        repository = InMemoryRepository()
+        self._apply(repository, weekend(), run_id=1)
+        self.assertEqual(repository.retired_events, set())
+
+        # The same weekend, published under a different name - which is what a
+        # renamed round looks like from here.
+        renamed = [
+            parsed(item.raw_session_name, "f1", item.local_start, event="Monza")
+            for item in weekend()
+        ]
+        counts = self._apply(repository, renamed, run_id=2)
+
+        self.assertEqual(counts.events_retired, 1)
+        self.assertIn(("f1", 2026, "italian-grand-prix"), repository.retired_events)
+        self.assertNotIn(("f1", 2026, "monza"), repository.retired_events)
+
+    def test_an_event_whose_sessions_come_back_is_not_left_retired(self):
+        repository = InMemoryRepository()
+        self._apply(repository, weekend(), run_id=1)
+        self._apply(repository, [parsed("Race", "f1", datetime(2026, 9, 6, 15, 0), event="Monza")], run_id=2)
+        self.assertIn(("f1", 2026, "italian-grand-prix"), repository.retired_events)
+
+        self._apply(repository, weekend(), run_id=3)
+        self.assertNotIn(("f1", 2026, "italian-grand-prix"), repository.retired_events)
+
+    def test_a_normal_run_retires_nothing(self):
+        repository = InMemoryRepository()
+        self._apply(repository, weekend(), run_id=1)
+        counts = self._apply(repository, weekend(), run_id=2)
+        self.assertEqual(counts.events_retired, 0)
+
+
 class GuardTests(unittest.TestCase):
     def setUp(self):
         self.series = load_series()["f1"]

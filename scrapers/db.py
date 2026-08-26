@@ -321,6 +321,32 @@ class PostgresRepository:
                     )
                     counts.revived += 1
 
+                # An event whose every session has been retired is not a race
+                # weekend any more. It is only ever created alongside sessions,
+                # so an empty one means they all went away - a round dropped
+                # from the calendar, or a slug that changed and left the old
+                # event behind. Left live it is a page with nothing on it, and
+                # a URL in the sitemap promising a schedule it does not have.
+                #
+                # Retired rather than deleted, like everything else here, and
+                # _upsert_event clears retired_at again the moment a session
+                # comes back.
+                cursor.execute(
+                    """
+                    UPDATE events e
+                       SET retired_at = now(), updated_at = now()
+                     WHERE e.series_id = %s
+                       AND e.season = %s
+                       AND e.retired_at IS NULL
+                       AND NOT EXISTS (
+                             SELECT 1 FROM sessions s
+                              WHERE s.event_id = e.id AND s.retired_at IS NULL
+                           )
+                    """,
+                    (series_id, season),
+                )
+                counts.events_retired += cursor.rowcount
+
             connection.commit()
         except Exception:
             connection.rollback()
