@@ -16,7 +16,9 @@ import { readPreferences } from "../../../../../lib/preferences.ts";
 import { getAdjacentEvents, getWeekend } from "../../../../../lib/queries.ts";
 import {
   breadcrumbJsonLd,
+  circuitPath,
   seasonPath,
+  seriesPath,
   sportsEventJsonLd,
 } from "../../../../../lib/structured-data.ts";
 import { formatTime, isStale, offsetLabel } from "../../../../../lib/time.ts";
@@ -80,11 +82,14 @@ export default async function WeekendPage({ params }: PageProps) {
   // Listed in championship order rather than the order they first run. F1
   // Academy often opens a Friday, but "F1 Academy - F3 - F2 - F1" reads as an
   // odd way round to anyone who knows the hierarchy.
-  const categories = [
+  const categoryLinks = [
     ...new Map(
       [...weekend.sessions]
         .sort((a, b) => a.categorySortOrder - b.categorySortOrder)
-        .map((session) => [session.categoryCode, session.categoryShortName]),
+        .map((session) => [
+          session.categoryCode,
+          { code: session.categoryCode, shortName: session.categoryShortName },
+        ]),
     ).values(),
   ];
 
@@ -133,7 +138,9 @@ export default async function WeekendPage({ params }: PageProps) {
 
         <h1 className="mt-2 text-3xl leading-tight">{event.eventName}</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          {event.venueName}
+          <Link href={circuitPath(event.venueSlug)} className="hover:text-ink">
+            {event.venueName}
+          </Link>
           {event.venueCity ? `, ${event.venueCity}` : ""} &middot; {event.venueCountry}
         </p>
 
@@ -152,7 +159,18 @@ export default async function WeekendPage({ params }: PageProps) {
           </div>
           <div>
             <dt className="eyebrow">Categories</dt>
-            <dd className="mt-0.5">{categories.join(" \u00b7 ")}</dd>
+            {/* Each one links to its own schedule: someone here for Formula 2
+                arrived at a page named after the Grand Prix. */}
+            <dd className="mt-0.5 flex flex-wrap items-center gap-x-1.5">
+              {categoryLinks.map((category, index) => (
+                <span key={category.code} className="flex items-center gap-x-1.5">
+                  {index > 0 ? <span aria-hidden="true">&middot;</span> : null}
+                  <Link href={seriesPath(category.code)} className="hover:text-ink">
+                    {category.shortName}
+                  </Link>
+                </span>
+              ))}
+            </dd>
           </div>
         </dl>
 

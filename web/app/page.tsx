@@ -19,6 +19,7 @@ import {
   getUpcomingSessions,
   hasSessionsAfter,
 } from "../lib/queries.ts";
+import { circuitPath } from "../lib/structured-data.ts";
 import { countdown, formatCountdown, formatTime } from "../lib/time.ts";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +95,9 @@ export default async function HomePage({
             </p>
 
             <p className="mt-1 text-sm text-ink-muted">
-              {next.venueName}
+              <Link href={circuitPath(next.venueSlug)} className="hover:text-ink">
+                {next.venueName}
+              </Link>
               {next.venueCity ? `, ${next.venueCity}` : ""}
             </p>
 

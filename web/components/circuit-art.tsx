@@ -5,10 +5,10 @@
  * approximated stand-in - see lib/circuits.ts for why that matters.
  */
 
-import { circuitPath } from "../lib/circuits.ts";
+import { circuitOutline } from "../lib/circuits.ts";
 
 export function CircuitArt({ venueSlug }: { venueSlug: string | null | undefined }) {
-  const path = circuitPath(venueSlug);
+  const path = circuitOutline(venueSlug);
   if (!path) return null;
 
   return (

@@ -12,7 +12,12 @@ import { EmptyBoard } from "../../components/board.tsx";
 import { JsonLd } from "../../components/json-ld.tsx";
 import { readPreferences } from "../../lib/preferences.ts";
 import { getSeasonEvents } from "../../lib/queries.ts";
-import { breadcrumbJsonLd, seasonListJsonLd, seasonPath } from "../../lib/structured-data.ts";
+import {
+  breadcrumbJsonLd,
+  circuitPath,
+  seasonListJsonLd,
+  seasonPath,
+} from "../../lib/structured-data.ts";
 import { dayKey, formatShortDay } from "../../lib/time.ts";
 
 export const dynamic = "force-dynamic";
@@ -109,7 +114,9 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                     {event.name}
                   </Link>
                   <span className="block truncate text-xs text-ink-muted">
-                    {event.venueName}
+                    <Link href={circuitPath(event.venueSlug)} className="hover:text-ink">
+                      {event.venueName}
+                    </Link>
                     {event.detailLevel === "partial" ? " \u00b7 partial schedule" : ""}
                   </span>
                 </span>

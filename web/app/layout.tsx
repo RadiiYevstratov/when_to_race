@@ -99,6 +99,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/calendar" className="hover:text-ink">
                 Season
               </Link>
+              <Link href="/series" className="hover:text-ink">
+                Series
+              </Link>
+              <Link href="/circuits" className="hover:text-ink">
+                Circuits
+              </Link>
               <Link href="/subscribe" className="hover:text-ink">
                 Subscribe
               </Link>

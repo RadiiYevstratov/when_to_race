@@ -1348,7 +1348,14 @@ export const CIRCUITS: Record<string, string> = {
 };
 
 /** The outline for a venue, or null when no traced map exists yet. */
-export function circuitPath(venueSlug: string | null | undefined): string | null {
+/**
+ * The traced outline for a venue, as SVG path data.
+ *
+ * Named for the outline rather than the venue because structured-data.ts owns
+ * `circuitPath`, which is the URL of a circuit's page - two different things
+ * that would otherwise share a name across the codebase.
+ */
+export function circuitOutline(venueSlug: string | null | undefined): string | null {
   if (!venueSlug) return null;
   return CIRCUITS[venueSlug] ?? null;
 }

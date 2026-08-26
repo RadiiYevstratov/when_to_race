@@ -281,6 +281,7 @@ export async function getSeasonEvents(selection: Selection = EMPTY, season: numb
       seriesCode: series.code,
       seriesShortName: series.shortName,
       accentColor: series.accentColor,
+      venueSlug: venues.slug,
       venueName: venues.name,
       venueCountry: venues.countryCode,
       circuitTimezone: venues.ianaTimezone,
@@ -393,6 +394,73 @@ export async function getVenueBySlug(slug: string) {
 
   const row = rows[0];
   return row && row.eventCount > 0 ? row : null;
+}
+
+/**
+ * Every circuit that has a round, with who races there.
+ *
+ * Ordered by name rather than by date: this is an index someone scans looking
+ * for a place they know, not a schedule.
+ */
+export async function getCircuitIndex() {
+  const rows = await db
+    .select({
+      slug: venues.slug,
+      name: venues.name,
+      city: venues.city,
+      countryCode: venues.countryCode,
+      seriesCode: series.code,
+      seriesShortName: series.shortName,
+      accentColor: series.accentColor,
+      seriesSortOrder: series.sortOrder,
+      nextStart: sql<Date | null>`min(${events.startsAtUtc})`,
+    })
+    .from(venues)
+    .innerJoin(events, and(eq(events.venueId, venues.id), isNull(events.retiredAt)))
+    .innerJoin(series, and(eq(series.id, events.seriesId), eq(series.isActive, true)))
+    .groupBy(
+      venues.slug,
+      venues.name,
+      venues.city,
+      venues.countryCode,
+      series.code,
+      series.shortName,
+      series.accentColor,
+      series.sortOrder,
+    )
+    .orderBy(asc(venues.name), asc(series.sortOrder));
+
+  const grouped = new Map<
+    string,
+    {
+      slug: string;
+      name: string;
+      city: string | null;
+      countryCode: string;
+      series: { code: string; shortName: string; accentColor: string }[];
+    }
+  >();
+
+  for (const row of rows) {
+    let circuit = grouped.get(row.slug);
+    if (!circuit) {
+      circuit = {
+        slug: row.slug,
+        name: row.name,
+        city: row.city,
+        countryCode: row.countryCode,
+        series: [],
+      };
+      grouped.set(row.slug, circuit);
+    }
+    circuit.series.push({
+      code: row.seriesCode,
+      shortName: row.seriesShortName,
+      accentColor: row.accentColor,
+    });
+  }
+
+  return [...grouped.values()];
 }
 
 /** Every circuit something actually races at, for the sitemap. */
