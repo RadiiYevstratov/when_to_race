@@ -249,7 +249,14 @@ accent_color = "#0C7C8C"
 sort_order = 70
 [series.source]
 adapter = "indycar"
-status = "unverified"
+status = "live"
+# The season index. Rounds are read off it and fetched one page each - the site
+# is server-rendered with no feed, no API and no embedded JSON, so this is the
+# one source here parsed straight from markup.
+#
+# Every time on the site is published in US Eastern, whatever timezone the
+# circuit is in. See docs/sources.md#indycar.
+url = "https://www.indycar.com/Schedule"
 discovery_notes = "docs/sources.md#indycar"
 [[series.categories]]
 code = "indycar"

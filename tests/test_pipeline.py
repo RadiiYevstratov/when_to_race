@@ -136,6 +136,7 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertIn("motogp", registered_adapters())
         self.assertIn("wsbk", registered_adapters())
         self.assertIn("wec", registered_adapters())
+        self.assertIn("indycar", registered_adapters())
 
     def test_an_unknown_adapter_names_what_is_available(self):
         with self.assertRaises(KeyError) as caught:
@@ -145,7 +146,7 @@ class SourceRegistryTests(unittest.TestCase):
     def test_unimplemented_series_are_honest_about_it(self):
         # Better to report "no adapter yet" than to ship a stub that silently
         # returns nothing and looks like an empty calendar.
-        for code in ("wrc", "imsa", "indycar", "nascar"):
+        for code in ("wrc", "imsa", "nascar"):
             with self.subTest(series=code):
                 self.assertNotIn(code, registered_adapters())
 

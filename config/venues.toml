@@ -491,6 +491,94 @@ iana_timezone = "America/Argentina/Cordoba"
 latitude = -27.51
 longitude = -64.85
 
+# IndyCar's 2026 calendar. Names and locations are taken from each round's own
+# page on indycar.com rather than supplied from memory, because three of these
+# are new circuits.
+#
+# Timezones are the point of this file and every one of these is a trap for
+# somebody: Nashville Superspeedway is in Lebanon, Tennessee and is Central
+# rather than Eastern; World Wide Technology Raceway is "St. Louis" to
+# commentators but sits in Illinois; the Milwaukee Mile is in West Allis.
+
+[[venue]]
+slug = "barber"
+name = "Barber Motorsports Park"
+country_code = "US"
+city = "Birmingham, AL"
+iana_timezone = "America/Chicago"
+latitude = 33.53
+longitude = -86.62
+
+[[venue]]
+slug = "milwaukee"
+name = "Milwaukee Mile"
+country_code = "US"
+city = "West Allis, WI"
+iana_timezone = "America/Chicago"
+latitude = 43.02
+longitude = -88.01
+
+[[venue]]
+slug = "nashville_superspeedway"
+name = "Nashville Superspeedway"
+country_code = "US"
+# Lebanon, not Nashville, and Central rather than the Eastern its name suggests
+# to anyone who has only seen the street race the city used to hold.
+city = "Lebanon, TN"
+iana_timezone = "America/Chicago"
+latitude = 36.02
+longitude = -86.41
+
+[[venue]]
+slug = "portland"
+name = "Portland International Raceway"
+country_code = "US"
+city = "Portland, OR"
+iana_timezone = "America/Los_Angeles"
+latitude = 45.60
+longitude = -122.69
+
+[[venue]]
+slug = "wwtr"
+name = "World Wide Technology Raceway"
+country_code = "US"
+city = "Madison, IL"
+iana_timezone = "America/Chicago"
+latitude = 38.65
+longitude = -90.13
+
+# The three street circuits below are new for 2026 and their layouts are not
+# published anywhere this project can read, so the coordinates are the host
+# city rather than the track. That is what the map link needs and no more; a
+# more precise-looking figure would only be a more precise-looking guess.
+
+[[venue]]
+slug = "arlington"
+name = "Streets of Arlington"
+country_code = "US"
+city = "Arlington, TX"
+iana_timezone = "America/Chicago"
+latitude = 32.75
+longitude = -97.09
+
+[[venue]]
+slug = "markham"
+name = "Streets of Markham"
+country_code = "CA"
+city = "Markham, ON"
+iana_timezone = "America/Toronto"
+latitude = 43.86
+longitude = -79.34
+
+[[venue]]
+slug = "washington_dc"
+name = "Streets of Washington"
+country_code = "US"
+city = "Washington, D.C."
+iana_timezone = "America/New_York"
+latitude = 38.90
+longitude = -77.02
+
 # --- Middle East, Asia, Africa, Oceania -------------------------------------
 [[venue]]
 slug = "sakhir"

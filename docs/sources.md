@@ -1,6 +1,6 @@
 # Sources
 
-## Status: F1, MotoGP, WorldSBK and WEC live, the rest outstanding
+## Status: F1, MotoGP, WorldSBK, WEC and IndyCar live, the rest outstanding
 
 Formula 1, MotoGP, WorldSBK and WEC are `status = "live"` and running against
 confirmed sources (see the findings below). MotoGP, WorldSBK and WEC were set
@@ -92,7 +92,7 @@ prior that a good structured source exists, nothing more.
 | MotoGP | Internal JSON | Medium | Four classes share a weekend. Check whether MotoE appears only at selected rounds |
 | WorldSBK | Internal JSON | Medium | Same publisher family as MotoGP; check whether the shape is shared. "Superpole" is qualifying, "Superpole Race" is a race — already handled in `normalize.py`, but confirm the source's exact strings |
 | WEC | ICS plausible | Medium | Le Mans is 24 hours: `ends_at_utc` is mandatory, and the frontend must render a session spanning three viewer-days |
-| IndyCar | JSON | Medium | Practice/qualifying naming varies by oval vs road course. Indy 500 has a qualifying weekend a week before the race — two events or one? Decide and document |
+| IndyCar | JSON | Medium | ~~Practice/qualifying naming varies by oval vs road course. Indy 500 has a qualifying weekend a week before the race — two events or one? Decide and document~~ **Wrong on the format: there is no JSON, it is server-rendered HTML.** Right about the naming. The Indy 500 is one event of thirteen days, as the source publishes it |
 | IMSA | JSON | Medium | Daytona 24 and Sebring 12 have the same multi-day span problem as Le Mans |
 | NASCAR | JSON | Medium | Some rounds have no practice or qualifying at all. The session floor for NASCAR is set to 1 for this reason |
 | WRC | Hardest | Low | 15–20 timed stages across four days. Stage-level data may not be reliably available ahead of time. Degrade to shakedown + day start/end + Power Stage and set `detail_level = 'partial'` rather than showing nothing — the schema and validation already support this |
@@ -480,7 +480,95 @@ Status: not investigated.
 
 ### IndyCar
 
-Status: not investigated.
+**Status: live.** Investigated 26 August 2026. The only source here parsed from
+plain HTML, and the only one that publishes every session in a timezone that is
+not the circuit's.
+
+| Field | Finding |
+|---|---|
+| Endpoint | `https://www.indycar.com/Schedule` lists the season's rounds; each links a page like `/Schedule/2026/Mid-Ohio` carrying that weekend's timetable. Two stages, so the adapter implements `resolve_urls` |
+| Type | **Server-rendered HTML.** The fourth and last option in the discovery order, taken because there is nothing above it: no calendar feed, no internal API behind the page, no `__NEXT_DATA__`, no JSON-LD. The only network call a loaded page makes is to a share-button widget |
+| Official? | **Yes.** IndyCar's own site |
+| **Timezone convention** | **US Eastern, for every round, whatever timezone the circuit is in.** Portland practice reads "5:00PM ET". The label is on every row and is read rather than assumed, so a page that ever says CT is not silently taken as Eastern |
+| End times | **None anywhere.** Every row is a start |
+| Provisional times | Not distinguishable. No TBC, TBD or equivalent appears anywhere in the season |
+| Support categories | **No.** Indy NXT shares the weekend but not the web page - see below |
+| Coverage 2026 | 18 round pages, 100 rows, becoming 17 events and 89 sessions |
+| robots.txt | Not served - `/robots.txt` returns the site's 404 page. There is no directive to honour or to breach |
+| Auth | None |
+| Confidence | Medium-high on the data, medium on the format. It is official and internally consistent, but markup is the most fragile thing to depend on |
+
+**The timezone was verified against an independent official document**, which is
+what the discovery protocol asks for and the one check worth doing twice. The
+site lists Laguna Seca practice at "5:00PM ET". The weekend-schedule PDF linked
+from that same page prints **"Schedule subject to change - All times local
+(Pacific)"** and lists it at 2:00 PM. The two agree exactly, which settles it:
+the site normalises to Eastern, and treating those times as circuit-local would
+put every West Coast session three hours wrong - plausibly wrong, on a board
+where nothing would look out of place.
+
+The adapter therefore resolves Eastern to an absolute instant itself rather than
+handing normalize a naive local time. That is a deliberate exception to sources
+leaving timezones alone: reading a stamp the source states outright is parsing,
+while deciding what zone a *circuit* sits in stays with normalize and the venue
+registry. Passing "ET" through as `local_timezone` would be worse than useless -
+normalize reads that as a display override, so every Portland session would be
+shown to a viewer in Eastern.
+
+**Three ways the source repeats or omits itself, all handled:**
+
+- **A session is listed once per broadcaster.** Indianapolis 500 practice appears
+  at 12:00PM on FS2 and again at 4:00PM on FS1. One session running from noon,
+  two television windows - and the second stored as a session is a practice at
+  an hour nothing starts. Rows sharing a day, a class and a name collapse to the
+  earliest time given.
+- **A doubleheader is two rounds on one weekend.** Milwaukee Race 1 and Race 2
+  have separate pages listing overlapping sessions; qualifying is on both. They
+  fold into one event, which is what a weekend view is for. The same collapse
+  handles the overlap, which is why it runs across the season rather than per
+  page - a per-page rule passed the validators' `duplicate_uid` check straight
+  into a failed run.
+- **The day headings carry no year.** "Friday, Aug 28" is all there is, so the
+  year comes from the season being scraped - and is then checked against the
+  weekday the heading names. A date that does not fall on the day the page says
+  it does means the assumption is wrong or the page is stale, and neither is
+  publishable.
+
+**Two entries on the schedule are not sessions.** The Indianapolis 500 timetable
+includes a "Pre-Race" ninety minutes before the race and the Oscar Mayer Wienie
+500, which is a hot dog race. The rule is that a row must either name its
+championship or read as a session on its own: that keeps Phoenix's unprefixed
+"Practice 1", drops the hot dogs, and keeps the Pit Stop Competition, which is
+genuinely IndyCar and genuinely on track.
+
+"Pre-Race" needed a fix in `normalize.py` rather than here, because it was being
+typed as a **race** - the word is inside it - which would have put a second
+Indianapolis 500 on the board two and a half hours before the real one. The same
+pass taught the classifier that IndyCar spells qualifying "Qualifications".
+
+**Indy NXT is configured but not published.** Its sessions do not exist in
+machine-readable form anywhere: indynxt.com's schedule page carries event cards
+with no session times at all, and on indycar.com its rows appear only inside the
+per-round PDFs. A category with no source is left empty rather than filled from
+a worse one - the same call made for F1 Academy before its own site was found.
+
+**Known limitations, in order of how much they matter:**
+
+1. **Markup is the whole contract.** A redesign breaks this, and unlike a JSON
+   API there is no version of it that is meant to be read by anyone. The
+   mitigations are that it fails loudly - an empty round page is logged, and the
+   validation floor turns a silent breakage into a failed run - and that the
+   fixtures are real excerpts, so a shape change fails a test before it reaches
+   anyone's phone.
+2. **No end times at all**, so every session's duration is the assumed one from
+   `web/lib/time.ts`. For an oval race that is a poor guess, and it decides how
+   long the board calls something live.
+3. **No provisional signal**, so a time that moves cannot be flagged before it
+   does. Same limitation as F2 and F3.
+4. **Indy NXT is missing**, as above.
+5. **The Indianapolis 500 is one event spanning thirteen days**, May 12 to 24,
+   because that is how IndyCar publishes it. It is not a weekend, and a weekend
+   view will show it as one long one.
 
 ### NASCAR
 
