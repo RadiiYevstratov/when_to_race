@@ -13,7 +13,7 @@
  * it on the client.
  */
 
-import { useEffect } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { COOKIE_MAX_AGE, SERIES_COOKIE } from "../lib/preference-keys.ts";
@@ -61,6 +61,8 @@ export function SeriesFilter({
   selected: Selection;
 }) {
   const router = useRouter();
+  const panelId = useId();
+  const [open, setOpen] = useState(false);
   const showingAll = isEverything(selected);
 
   // A category with no sessions would be a chip that always empties the board.
@@ -104,8 +106,41 @@ export function SeriesFilter({
     router.refresh();
   }
 
+  // What the collapsed control says it is doing, so a phone does not have to
+  // open the panel to find out what it is looking at.
+  const summary = showingAll
+    ? "All championships"
+    : live
+        .flatMap((item, index) =>
+          item.categories
+            .filter((c) => c.sessionCount > 0 && isCategorySelected(selected, groups[index], c.code))
+            .map((c) => c.shortName),
+        )
+        .join(", ") || "All championships";
+
   return (
-    <div className="flex flex-col gap-2" role="group" aria-label="Filter by series and class">
+    <div role="group" aria-label="Filter by series and class">
+      {/* The rows are five deep and wrap on a narrow screen, which put the
+          board below the fold on a phone - 59% of an iPhone was header before
+          any schedule. Collapsed by default there, always open from `sm` up
+          where the space is not contested. */}
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="flex w-full items-center justify-between gap-3 border border-rule px-3 py-2 font-mono text-xs text-ink-muted hover:border-ink hover:text-ink sm:hidden"
+      >
+        <span className="truncate">{summary}</span>
+        <span aria-hidden="true" className="shrink-0 text-ink-faint">
+          {open ? "Hide" : "Change"}
+        </span>
+      </button>
+
+      <div
+        id={panelId}
+        className={`${open ? "mt-2 flex" : "hidden"} flex-col gap-2 sm:mt-0 sm:flex`}
+      >
       <button
         type="button"
         onClick={() => commit({ seriesCodes: [], categoryCodes: [] })}
@@ -191,6 +226,7 @@ export function SeriesFilter({
           ))}
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

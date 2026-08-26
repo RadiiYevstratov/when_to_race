@@ -13,6 +13,7 @@ import { DayBoard } from "../../../../../components/board.tsx";
 import { CircuitArt } from "../../../../../components/circuit-art.tsx";
 import { JsonLd } from "../../../../../components/json-ld.tsx";
 import { readPreferences } from "../../../../../lib/preferences.ts";
+import { parseSeason } from "../../../../../lib/season.ts";
 import { getAdjacentEvents, getWeekend } from "../../../../../lib/queries.ts";
 import {
   breadcrumbJsonLd,
@@ -21,7 +22,12 @@ import {
   seriesPath,
   sportsEventJsonLd,
 } from "../../../../../lib/structured-data.ts";
-import { formatTime, isStale, offsetLabel } from "../../../../../lib/time.ts";
+import {
+  formatTime,
+  formatZoneName,
+  isStale,
+  offsetLabel,
+} from "../../../../../lib/time.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +51,11 @@ function describe(event: {
 
 export async function generateMetadata({ params }: PageProps) {
   const { series, season, slug } = await params;
-  const weekend = await getWeekend(series, Number(season), slug);
-  if (!weekend) return { title: "Weekend not found" };
+  const seasonNumber = parseSeason(season);
+  if (seasonNumber === null) return { title: "Not found", robots: { index: false } };
+
+  const weekend = await getWeekend(series, seasonNumber, slug);
+  if (!weekend) return { title: "Not found", robots: { index: false } };
 
   const event = weekend.event;
   const title = `${event.eventName} ${event.season} - session times`;
@@ -64,8 +73,10 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function WeekendPage({ params }: PageProps) {
   const { series, season, slug } = await params;
-  const seasonNumber = Number(season);
-  if (!Number.isInteger(seasonNumber)) notFound();
+  // Range-checked, not just "is it a number": `season` is a Postgres integer,
+  // so an absurd one is a database error rather than an empty result.
+  const seasonNumber = parseSeason(season);
+  if (seasonNumber === null) notFound();
 
   const weekend = await getWeekend(series, seasonNumber, slug);
   if (!weekend) notFound();
@@ -148,13 +159,13 @@ export default async function WeekendPage({ params }: PageProps) {
           <div>
             <dt className="eyebrow">Your time</dt>
             <dd className="mt-0.5">
-              {timeZone.replace(/_/g, " ")} {offsetLabel(now, timeZone)}
+              {formatZoneName(timeZone)} {offsetLabel(now, timeZone)}
             </dd>
           </div>
           <div>
             <dt className="eyebrow">Circuit time</dt>
             <dd className="mt-0.5">
-              {circuitZone.replace(/_/g, " ")} {offsetLabel(now, circuitZone)}
+              {formatZoneName(circuitZone)} {offsetLabel(now, circuitZone)}
             </dd>
           </div>
           <div>
@@ -182,11 +193,11 @@ export default async function WeekendPage({ params }: PageProps) {
         ) : null}
       </header>
 
-      <DayBoard sessions={weekend.sessions} timeZone={timeZone} now={now} />
+      <DayBoard sessions={weekend.sessions} timeZone={timeZone} now={now} headingLevel={2} />
 
       <footer className="space-y-3 border-t border-rule pt-4 text-xs text-ink-muted">
         <p>
-          All times shown in {timeZone.replace(/_/g, " ")}. The first session starts at{" "}
+          All times shown in {formatZoneName(timeZone)}. The first session starts at{" "}
           {formatTime(weekend.sessions[0].startsAtUtc, circuitZone)} local time at the circuit.
         </p>
         {adjacent.previous || adjacent.next ? (

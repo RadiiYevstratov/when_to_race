@@ -70,11 +70,26 @@ export const viewport: Viewport = {
   themeColor: "#08090a",
 };
 
+/**
+ * The filter needs the database; the rest of the page does not.
+ *
+ * This runs on every request on every route, so a failure here takes the whole
+ * site down rather than one page - and error.tsx cannot catch it, because
+ * error.tsx renders inside this layout. Degrading to an empty catalogue costs
+ * the filter row and keeps everything else: the nav, the content, and any page
+ * that does not happen to need the database.
+ */
+async function loadCatalogue() {
+  try {
+    return await getSeriesCatalogue();
+  } catch (error) {
+    console.error("series catalogue unavailable; rendering without the filter", error);
+    return [];
+  }
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [preferences, allSeries] = await Promise.all([
-    readPreferences(),
-    getSeriesCatalogue(),
-  ]);
+  const [preferences, allSeries] = await Promise.all([readPreferences(), loadCatalogue()]);
 
   return (
     <html lang="en" className={`${archivo.variable} ${plexMono.variable}`}>
@@ -117,9 +132,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </div>
 
-          <div className="mx-auto max-w-4xl px-4 pb-6 pt-1">
-            <SeriesFilter allSeries={allSeries} selected={preferences.selection} />
-          </div>
+          {allSeries.length > 0 ? (
+            <div className="mx-auto max-w-4xl px-4 pb-6 pt-1">
+              <SeriesFilter allSeries={allSeries} selected={preferences.selection} />
+            </div>
+          ) : null}
         </header>
 
         <main id="board" className="mx-auto max-w-4xl px-4 py-6">

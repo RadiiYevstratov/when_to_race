@@ -11,11 +11,11 @@
  */
 
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { COOKIE_MAX_AGE, TIMEZONE_COOKIE } from "../lib/preference-keys.ts";
-import { offsetLabel } from "../lib/time.ts";
+import { formatZoneName, offsetLabel } from "../lib/time.ts";
 
 const STORAGE_KEY = "ms_timezone";
 
@@ -36,6 +36,29 @@ export function TimezoneBar({ timeZone, isAssumed }: { timeZone: string; isAssum
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const zones = useMemo(supportedZones, []);
+  const panelId = useId();
+  const container = useRef<HTMLDivElement>(null);
+
+  // A popover that can only be closed by finding the button again is a trap on
+  // a phone, where it covers most of the screen. Escape and a tap outside are
+  // what people already try.
+  useEffect(() => {
+    if (!open) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (!container.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [open]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -64,20 +87,24 @@ export function TimezoneBar({ timeZone, isAssumed }: { timeZone: string; isAssum
   const offset = offsetLabel(new Date(), timeZone);
 
   return (
-    <div className="relative text-right">
+    <div ref={container} className="relative text-right">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
+        aria-controls={panelId}
         className="font-mono text-xs text-ink-muted hover:text-ink"
       >
         <span className="eyebrow mr-2">Times in</span>
-        <span className="text-ink">{timeZone.replace(/_/g, " ")}</span>
+        <span className="text-ink">{formatZoneName(timeZone)}</span>
         <span className="ml-1 text-ink-faint">{offset}</span>
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-72 border border-rule bg-panel p-3 text-left shadow-lg">
+        <div
+          id={panelId}
+          className="absolute right-0 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] border border-rule bg-panel p-3 text-left shadow-lg"
+        >
           <label htmlFor="tz" className="eyebrow block">
             Show times in
           </label>
@@ -90,7 +117,7 @@ export function TimezoneBar({ timeZone, isAssumed }: { timeZone: string; isAssum
             {zones.length === 0 ? <option value={timeZone}>{timeZone}</option> : null}
             {zones.map((zone) => (
               <option key={zone} value={zone}>
-                {zone.replace(/_/g, " ")}
+                {formatZoneName(zone)}
               </option>
             ))}
           </select>

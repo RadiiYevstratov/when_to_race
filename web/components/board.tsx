@@ -142,19 +142,30 @@ export function DayBoard({
   timeZone,
   now,
   showEvent = false,
+  headingLevel = 3,
 }: {
   sessions: SessionRow[];
   timeZone: string;
   now: Date;
   showEvent?: boolean;
+  /**
+   * What level the day headings sit at.
+   *
+   * On the home page the board lives inside an h2 section, so its days are
+   * h3s. On a weekend page it is the page's only content and follows the h1
+   * directly, and an h1 followed by an h3 is a level a screen reader announces
+   * as missing.
+   */
+  headingLevel?: 2 | 3;
 }) {
   const groups = groupByDay(sessions, timeZone);
+  const DayHeading = (headingLevel === 2 ? "h2" : "h3") as "h2" | "h3";
 
   return (
     <div className="space-y-8">
       {groups.map((group) => (
         <section key={group.key}>
-          <h3 className="eyebrow border-b border-ink pb-1.5">{group.heading}</h3>
+          <DayHeading className="eyebrow border-b border-ink pb-1.5">{group.heading}</DayHeading>
           <ul className="mt-1">
             {group.items.map((session) => (
               <BoardRow

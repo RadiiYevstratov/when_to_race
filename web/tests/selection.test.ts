@@ -22,6 +22,7 @@ import {
   type Selection,
   type SeriesGroup,
 } from "../lib/selection.ts";
+import { parseSeason, maxSeason } from "../lib/season.ts";
 
 const F1: SeriesGroup = { code: "f1", categoryCodes: ["f1", "f2", "f3", "f1a"] };
 const MOTOGP: SeriesGroup = { code: "motogp", categoryCodes: ["motogp", "moto2", "moto3"] };
@@ -180,5 +181,48 @@ describe("healing a stale selection", () => {
       seriesCodes: ["wec"],
       categoryCodes: [],
     });
+  });
+});
+
+describe("reading a season from a URL", () => {
+  const now = new Date("2026-08-26T00:00:00Z");
+
+  test("a real season is accepted", () => {
+    assert.equal(parseSeason("2026", now), 2026);
+    assert.equal(parseSeason(2026, now), 2026);
+    assert.equal(parseSeason("1950", now), 1950);
+  });
+
+  test("a season past the integer column is refused, not queried", () => {
+    // These two produced a 500 and a database error in the log, because the
+    // value was a valid number that Postgres could not hold.
+    assert.equal(parseSeason("2147483648", now), null);
+    assert.equal(parseSeason("99999999999", now), null);
+    assert.equal(parseSeason("999999999999", now), null);
+  });
+
+  test("anything that is not four digits is refused", () => {
+    for (const bad of ["abc", "", "-1", "20.26", "0x7e2", "1e3", "2026'--", "02026", null, undefined]) {
+      assert.equal(parseSeason(bad as string, now), null, String(bad));
+    }
+  });
+
+  test("surrounding whitespace is forgiven", () => {
+    // Harmless: what remains still has to be exactly four digits in range, and
+    // a hand-edited URL picking up a space should not be a dead end.
+    assert.equal(parseSeason(" 2026 ", now), 2026);
+  });
+
+  test("a season outside living motorsport is refused", () => {
+    assert.equal(parseSeason("1949", now), null);
+    assert.equal(parseSeason("1899", now), null);
+    // Calendars do get published a few years ahead.
+    assert.equal(parseSeason("2031", now), 2031);
+    assert.equal(parseSeason("2032", now), null);
+  });
+
+  test("the upper bound moves with the clock, not with the code", () => {
+    assert.equal(maxSeason(new Date("2026-01-01T00:00:00Z")), 2031);
+    assert.equal(maxSeason(new Date("2030-01-01T00:00:00Z")), 2035);
   });
 });

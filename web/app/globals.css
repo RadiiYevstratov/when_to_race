@@ -23,7 +23,11 @@
   --rule: #24272d;
   --ink: #eef0f1;
   --ink-muted: #8a9298;
-  --ink-faint: #565d62;
+  /* Raised from #565d62, which measured 2.68:1 against a card - well under
+     the 4.5:1 that normal text needs to be readable. It carries the eyebrows,
+     the meta lines and the footer, so it was the one token failing across
+     every page. Same hue, enough lightness to clear the threshold. */
+  --ink-faint: #778188;
 
   --live: #35d183;
   --provisional: #e0a32e;

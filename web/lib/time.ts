@@ -82,6 +82,15 @@ export function formatTime(value: string | Date, timeZone: string, hour12 = fals
   return `${hour}:${parts.minute}`;
 }
 
+/**
+ * An IANA zone as a person reads it: "Europe/Bratislava" has an underscore in
+ * roughly a third of real zone names, and "America/New_York" in a header looks
+ * like a bug. Written out five separate times before this existed.
+ */
+export function formatZoneName(timeZone: string): string {
+  return timeZone.replace(/_/g, " ");
+}
+
 export function formatDayHeading(key: DayKey, timeZone: string): string {
   const date = new Date(`${key}T12:00:00Z`);
   return new Intl.DateTimeFormat("en-GB", {
@@ -222,17 +231,104 @@ export function formatCountdown(value: Countdown): string {
   return `${value.minutes}m ${String(value.seconds).padStart(2, "0")}s`;
 }
 
+/**
+ * How long a session runs when its source never said.
+ *
+ * Not every organiser publishes an end time - MotoGP publishes none at all for
+ * races, and WEC publishes none for practice or qualifying - so something has
+ * to be assumed to answer "is this on right now". A single flat guess used to
+ * serve that, and two hours was wrong in both directions: it kept a 45-minute
+ * Grand Prix marked live for over an hour after the flag, and would have
+ * dropped a 6-hour endurance race four hours early.
+ *
+ * These are medians of the sessions where the end *is* published, measured
+ * across every series on the site rather than picked by feel. They err a little
+ * long on purpose: showing a session as live shortly after it finished is a
+ * smaller failure than hiding one that is still running, which is the entire
+ * reason someone opened the page.
+ *
+ * Endurance racing is the deliberate exception and needs no entry here: WEC
+ * publishes a real end for every race, so no race ever falls back to this.
+ */
+const ASSUMED_MINUTES: Record<string, number> = {
+  practice: 60,
+  qualifying: 45,
+  sprint_qualifying: 45,
+  sprint: 45,
+  race: 90,
+  warmup: 20,
+  shakedown: 60,
+  stage: 30,
+  test: 240,
+  other: 60,
+};
+
+const FALLBACK_MINUTES = 60;
+
+/**
+ * Where a championship differs enough from the general case to matter.
+ *
+ * A single figure per session type is too blunt for "race": a WorldSBK race is
+ * a quarter of an hour and a Formula 1 race is over an hour, so one number
+ * would leave one of them marked live long after the flag. These are the
+ * medians measured per series, and only where the gap is worth a special case.
+ *
+ * MotoGP races and sprints publish no end at all, so nothing can be measured
+ * for them - those two are the scheduled distances, which is the best figure
+ * available and still far closer than the general default.
+ */
+const ASSUMED_MINUTES_BY_SERIES: Record<string, Record<string, number>> = {
+  f1: { practice: 60, qualifying: 60, sprint: 50, race: 70 },
+  motogp: { practice: 35, qualifying: 15, warmup: 10, sprint: 25, race: 50 },
+  wsbk: { practice: 40, qualifying: 25, warmup: 10, race: 25 },
+  // WEC publishes an end for every race, so only the untimed sessions matter.
+  wec: { practice: 90, qualifying: 30, warmup: 15 },
+};
+
+export function assumedDurationMinutes(
+  sessionType?: string | null,
+  seriesCode?: string | null,
+): number {
+  if (!sessionType) return FALLBACK_MINUTES;
+  const bySeries = seriesCode ? ASSUMED_MINUTES_BY_SERIES[seriesCode]?.[sessionType] : undefined;
+  return bySeries ?? ASSUMED_MINUTES[sessionType] ?? FALLBACK_MINUTES;
+}
+
+export interface HasSpan {
+  startsAtUtc: string | Date;
+  endsAtUtc?: string | Date | null;
+  sessionType?: string | null;
+  /** Optional: sharpens the assumption where a championship differs. */
+  seriesCode?: string | null;
+}
+
+/**
+ * When a session finishes, published or assumed.
+ *
+ * The single place that answers this. It is needed by the board, by the
+ * calendar export and by anything asking whether a session is running, and
+ * three separate answers is how they drift apart.
+ */
+export function sessionEnd(session: HasSpan): Date {
+  const start = toDate(session.startsAtUtc);
+  if (session.endsAtUtc) {
+    const end = toDate(session.endsAtUtc);
+    // A stored end at or before the start carries no information. Normalisation
+    // strips these, but a row written before that rule existed can still exist.
+    if (end.getTime() > start.getTime()) return end;
+  }
+  const minutes = assumedDurationMinutes(session.sessionType, session.seriesCode);
+  return new Date(start.getTime() + minutes * 60_000);
+}
+
 /** True while the session is running: after the start, before the end. */
 export function isLive(
-  session: { startsAtUtc: string | Date; endsAtUtc?: string | Date | null; status?: string },
+  session: HasSpan & { status?: string },
   now: Date = new Date(),
 ): boolean {
   if (session.status === "cancelled") return false;
   const start = toDate(session.startsAtUtc).getTime();
-  const end = session.endsAtUtc
-    ? toDate(session.endsAtUtc).getTime()
-    : start + 2 * 3_600_000; // assume two hours when a source gives no end
-  return now.getTime() >= start && now.getTime() <= end;
+  return now.getTime() >= start && now.getTime() <= sessionEnd(session).getTime();
 }
 
 /** A series is stale if it has not scraped successfully in 48 hours. */

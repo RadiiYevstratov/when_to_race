@@ -11,6 +11,7 @@ import Link from "next/link";
 import { EmptyBoard } from "../../components/board.tsx";
 import { JsonLd } from "../../components/json-ld.tsx";
 import { readPreferences } from "../../lib/preferences.ts";
+import { parseSeason } from "../../lib/season.ts";
 import { getSeasonEvents } from "../../lib/queries.ts";
 import {
   breadcrumbJsonLd,
@@ -29,7 +30,9 @@ interface PageProps {
 export async function generateMetadata({ searchParams }: PageProps) {
   const { season: seasonParam } = await searchParams;
   const thisYear = new Date().getUTCFullYear();
-  const season = Number(seasonParam) || thisYear;
+  // A nonsense season shows this year rather than erroring: someone editing a
+  // URL by hand should land somewhere useful, not on a stack trace.
+  const season = parseSeason(seasonParam) ?? thisYear;
   const path = seasonPath(season, thisYear);
 
   const title = `${season} season calendar`;
@@ -49,7 +52,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   const now = new Date();
   const { season: seasonParam } = await searchParams;
   const thisYear = now.getUTCFullYear();
-  const season = Number(seasonParam) || thisYear;
+  const season = parseSeason(seasonParam, now) ?? thisYear;
 
   const { timeZone, selection } = await readPreferences();
   const events = await getSeasonEvents(selection, season);

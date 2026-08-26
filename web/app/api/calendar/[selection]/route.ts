@@ -38,6 +38,19 @@ export async function GET(
     return new NextResponse("Too many series in one selection", { status: 400 });
   }
 
+  // A selection that named something, none of which survived parsing, is a
+  // mistake rather than a request for everything. Silently widening it would
+  // subscribe someone to ten championships because they mistyped one - and a
+  // calendar subscription is checked once and then trusted for a season.
+  const asked = decodeURIComponent(selection).replace(/\.ics$/i, "").trim();
+  const wantsEverything = asked === "" || asked.toLowerCase() === "all";
+  if (!wantsEverything && seriesCodes.length + categoryCodes.length === 0) {
+    return new NextResponse(
+      "Unrecognised selection. Use a series code, a series.class code, or 'all'.",
+      { status: 400 },
+    );
+  }
+
   let rows;
   try {
     rows = await getCalendarSessions(seriesCodes, categoryCodes);
@@ -54,6 +67,11 @@ export async function GET(
     icsUid: row.icsUid,
     icsSequence: row.icsSequence,
     displayName: row.displayName,
+    // Without this a session whose source gave no end time gets the generic
+    // assumed length rather than the one for its kind - a 90-minute race
+    // arriving in someone's calendar as an hour.
+    sessionType: row.sessionType,
+    seriesCode: row.seriesCode,
     seriesShortName: row.seriesShortName,
     categoryShortName: row.categoryShortName,
     eventName: row.eventName,

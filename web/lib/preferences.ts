@@ -44,9 +44,3 @@ export async function readPreferences(): Promise<ViewerPreferences> {
 
   return { timeZone, selection, timeZoneIsAssumed };
 }
-
-/** "Europe/Bratislava" reads better as "Bratislava" in a tight header. */
-export function shortZoneName(timeZone: string): string {
-  const tail = timeZone.split("/").pop() ?? timeZone;
-  return tail.replace(/_/g, " ");
-}

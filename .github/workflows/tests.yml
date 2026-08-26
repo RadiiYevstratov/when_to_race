@@ -26,7 +26,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
       - run: npm ci
+
       - run: npm run typecheck
-      - name: Run frontend logic tests
-        run: node --experimental-strip-types --test "tests/**/*.test.ts"
+
+      # No DATABASE_URL here on purpose. The integration tests skip themselves
+      # without one, and the rest must not need a database to run.
+      - name: Run frontend tests
+        run: npm test
+
+      # The build is what deploys. It has failed on the host while every test
+      # passed locally, so it belongs in CI rather than being discovered at
+      # deploy time. Unset explicitly: the build must never need a secret.
+      - name: Build without credentials
+        run: npm run build
+        env:
+          DATABASE_URL: ""
+          NEXT_PUBLIC_SITE_URL: https://example.com
+
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # A dependency advisory is a bug that arrives without a commit, so this
+      # runs on its own and is allowed to fail the build.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
