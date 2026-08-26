@@ -1,9 +1,14 @@
 import type { MetadataRoute } from "next";
 
-import { getPublishedSeasons, getSeasonEvents } from "../lib/queries.ts";
+import {
+  getPublishedSeasons,
+  getRunnableCategoryCodes,
+  getSeasonEvents,
+  getVisitedVenueSlugs,
+} from "../lib/queries.ts";
 import { SITE_URL } from "../lib/site.ts";
 import { EMPTY_SELECTION } from "../lib/selection.ts";
-import { seasonPath } from "../lib/structured-data.ts";
+import { circuitPath, seasonPath, seriesPath } from "../lib/structured-data.ts";
 
 /**
  * Generated per request rather than at build time.
@@ -40,6 +45,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         url: `${SITE_URL}${seasonPath(season, thisYear)}`,
         changeFrequency: "yearly",
         priority: 0.4,
+      });
+    }
+
+    // One page per class and per circuit. Both lists are derived from what
+    // has actually run, so a discontinued class or a circuit nothing visits
+    // never reaches the sitemap as a page that would render empty.
+    const [categoryCodes, venueSlugs] = await Promise.all([
+      getRunnableCategoryCodes(),
+      getVisitedVenueSlugs(),
+    ]);
+
+    for (const code of categoryCodes) {
+      staticPages.push({
+        url: `${SITE_URL}${seriesPath(code)}`,
+        changeFrequency: "daily",
+        priority: 0.8,
+      });
+    }
+    for (const slug of venueSlugs) {
+      staticPages.push({
+        url: `${SITE_URL}${circuitPath(slug)}`,
+        changeFrequency: "weekly",
+        priority: 0.6,
       });
     }
 

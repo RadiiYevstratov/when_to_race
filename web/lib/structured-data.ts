@@ -73,6 +73,16 @@ export function seasonPath(season: number, currentSeason: number): string {
   return season === currentSeason ? "/calendar" : `/calendar?season=${season}`;
 }
 
+/** One class's own page: /series/f2. */
+export function seriesPath(categoryCode: string): string {
+  return `/series/${categoryCode}`;
+}
+
+/** One circuit's own page: /circuit/monza. */
+export function circuitPath(venueSlug: string): string {
+  return `/circuit/${venueSlug}`;
+}
+
 export function weekendPath(event: {
   seriesCode: string;
   season: number;
@@ -191,6 +201,45 @@ export function sportsEventJsonLd(
       value.endDate = toLocalIso(new Date(Math.max(...endTimes)), zone);
     }
     value.subEvent = ordered.map((session) => subEvent(session, event, url));
+  }
+
+  return value;
+}
+
+/**
+ * A circuit as a Place.
+ *
+ * Not a SportsEvent: the page is about somewhere, not something happening. The
+ * individual rounds already describe themselves on their own pages, and
+ * repeating them here would put the same event in two places with two ids.
+ */
+export function circuitJsonLd(venue: {
+  slug: string;
+  name: string;
+  city: string | null;
+  countryCode: string;
+  latitude: number | null;
+  longitude: number | null;
+}): Json {
+  const value: Json = {
+    "@context": "https://schema.org",
+    "@type": "Place",
+    "@id": `${SITE_URL}${circuitPath(venue.slug)}`,
+    name: venue.name,
+    url: `${SITE_URL}${circuitPath(venue.slug)}`,
+    address: {
+      "@type": "PostalAddress",
+      ...(venue.city ? { addressLocality: venue.city } : {}),
+      addressCountry: venue.countryCode,
+    },
+  };
+
+  if (typeof venue.latitude === "number" && typeof venue.longitude === "number") {
+    value.geo = {
+      "@type": "GeoCoordinates",
+      latitude: venue.latitude,
+      longitude: venue.longitude,
+    };
   }
 
   return value;

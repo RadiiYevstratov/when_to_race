@@ -298,6 +298,169 @@ export async function getSeasonEvents(selection: Selection = EMPTY, season: numb
     .orderBy(asc(events.startsAtUtc));
 }
 
+/**
+ * One class, by its own code.
+ *
+ * Returns null for a code that exists but has never run - MotoE and
+ * WorldSSP300 are seeded and discontinued, and a page for one would be an
+ * empty schedule under a confident heading.
+ */
+export async function getCategoryByCode(code: string) {
+  const rows = await db
+    .select({
+      code: categories.code,
+      name: categories.name,
+      shortName: categories.shortName,
+      isHeadline: categories.isHeadline,
+      accentColor: sql<string>`coalesce(${categories.accentColor}, ${series.accentColor})`,
+      seriesCode: series.code,
+      seriesName: series.name,
+      seriesShortName: series.shortName,
+      lastSuccessfulScrape: series.lastSuccessfulScrape,
+      sessionCount: sql<number>`count(${sessions.id})`.mapWith(Number),
+    })
+    .from(categories)
+    .innerJoin(series, eq(series.id, categories.seriesId))
+    .leftJoin(
+      sessions,
+      and(eq(sessions.categoryId, categories.id), isNull(sessions.retiredAt)),
+    )
+    .where(and(eq(categories.code, code), eq(series.isActive, true)))
+    .groupBy(
+      categories.code,
+      categories.name,
+      categories.shortName,
+      categories.isHeadline,
+      categories.accentColor,
+      series.code,
+      series.name,
+      series.shortName,
+      series.accentColor,
+      series.lastSuccessfulScrape,
+    )
+    .limit(1);
+
+  const row = rows[0];
+  return row && row.sessionCount > 0 ? row : null;
+}
+
+/** Every class that has run, for the sitemap and for cross-links. */
+export async function getRunnableCategoryCodes(): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ code: categories.code })
+    .from(categories)
+    .innerJoin(series, eq(series.id, categories.seriesId))
+    .innerJoin(
+      sessions,
+      and(eq(sessions.categoryId, categories.id), isNull(sessions.retiredAt)),
+    )
+    .where(eq(series.isActive, true))
+    .orderBy(asc(categories.code));
+  return rows.map((row) => row.code);
+}
+
+/**
+ * One circuit, and whether anything is scheduled there.
+ *
+ * A venue with no visible event gets no page: the registry holds circuits that
+ * no championship currently visits, and a page for one would say nothing.
+ */
+export async function getVenueBySlug(slug: string) {
+  const rows = await db
+    .select({
+      slug: venues.slug,
+      name: venues.name,
+      city: venues.city,
+      countryCode: venues.countryCode,
+      ianaTimezone: venues.ianaTimezone,
+      latitude: venues.latitude,
+      longitude: venues.longitude,
+      eventCount: sql<number>`count(${events.id})`.mapWith(Number),
+    })
+    .from(venues)
+    .leftJoin(events, and(eq(events.venueId, venues.id), isNull(events.retiredAt)))
+    .where(eq(venues.slug, slug))
+    .groupBy(
+      venues.slug,
+      venues.name,
+      venues.city,
+      venues.countryCode,
+      venues.ianaTimezone,
+      venues.latitude,
+      venues.longitude,
+    )
+    .limit(1);
+
+  const row = rows[0];
+  return row && row.eventCount > 0 ? row : null;
+}
+
+/** Every circuit something actually races at, for the sitemap. */
+export async function getVisitedVenueSlugs(): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ slug: venues.slug })
+    .from(venues)
+    .innerJoin(events, and(eq(events.venueId, venues.id), isNull(events.retiredAt)))
+    .orderBy(asc(venues.slug));
+  return rows.map((row) => row.slug);
+}
+
+/**
+ * Every round at one circuit, whichever championship it belongs to.
+ *
+ * The point of a circuit page: someone searching "Monza session times" wants
+ * the weekend, not one series' slice of it.
+ */
+export async function getEventsAtVenue(slug: string) {
+  return db
+    .select({
+      slug: events.slug,
+      name: events.name,
+      season: events.season,
+      roundNumber: events.roundNumber,
+      startsAtUtc: events.startsAtUtc,
+      endsAtUtc: events.endsAtUtc,
+      status: events.status,
+      seriesCode: series.code,
+      seriesShortName: series.shortName,
+      accentColor: series.accentColor,
+    })
+    .from(events)
+    .innerJoin(series, eq(series.id, events.seriesId))
+    .innerJoin(venues, eq(venues.id, events.venueId))
+    .where(and(isNull(events.retiredAt), eq(venues.slug, slug), eq(series.isActive, true)))
+    .orderBy(asc(events.startsAtUtc));
+}
+
+/** The circuits one class visits in a season, in calendar order. */
+export async function getVenuesForCategory(code: string, season: number) {
+  return db
+    .selectDistinctOn([events.startsAtUtc], {
+      venueSlug: venues.slug,
+      venueName: venues.name,
+      venueCountry: venues.countryCode,
+      eventSlug: events.slug,
+      eventName: events.name,
+      seriesCode: series.code,
+      season: events.season,
+      startsAtUtc: events.startsAtUtc,
+    })
+    .from(sessions)
+    .innerJoin(categories, eq(categories.id, sessions.categoryId))
+    .innerJoin(events, eq(events.id, sessions.eventId))
+    .innerJoin(series, eq(series.id, events.seriesId))
+    .innerJoin(venues, eq(venues.id, events.venueId))
+    .where(
+      and(
+        isNull(sessions.retiredAt),
+        isNull(events.retiredAt),
+        eq(categories.code, code),
+        eq(events.season, season),
+      ),
+    )
+    .orderBy(asc(events.startsAtUtc));
+}
+
 /** Every season that has published rounds, newest first. */
 export async function getPublishedSeasons(): Promise<number[]> {
   const rows = await db
