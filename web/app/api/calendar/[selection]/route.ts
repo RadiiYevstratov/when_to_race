@@ -54,6 +54,10 @@ export async function GET(
     icsUid: row.icsUid,
     icsSequence: row.icsSequence,
     displayName: row.displayName,
+    // Without this a session whose source gave no end time gets the generic
+    // assumed length rather than the one for its kind - a 90-minute race
+    // arriving in someone's calendar as an hour.
+    sessionType: row.sessionType,
     seriesShortName: row.seriesShortName,
     categoryShortName: row.categoryShortName,
     eventName: row.eventName,

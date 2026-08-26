@@ -137,6 +137,19 @@ def _resolve_start(
             f"session {parsed.raw_session_name!r} ends before it starts "
             f"({start_utc.isoformat()} -> {end_utc.isoformat()})"
         )
+
+    # An end equal to the start is not a duration of zero, it is the absence of
+    # an end wearing the costume of one - and the costume is what does the
+    # damage, because every layer downstream then treats it as known. MotoGP
+    # publishes every race and sprint this way: date_end repeats date_start.
+    # Stored as-is it meant a Grand Prix was never "running now" and landed in
+    # a subscribed calendar as an instant rather than as a race.
+    #
+    # Dropped to None so it takes the same honest path as a source that simply
+    # says nothing, and the display layer applies a stated assumption.
+    if end_utc is not None and end_utc == start_utc:
+        end_utc = None
+
     return start_utc, end_utc, tz_override
 
 

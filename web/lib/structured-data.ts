@@ -123,9 +123,10 @@ function place(event: StructuredEvent): Json {
 /**
  * A single session as a subEvent.
  *
- * Sessions with no end time are left open rather than given a guessed one. The
- * board assumes two hours when it needs to draw something, but a guess written
- * into structured data would be republished as fact.
+ * Sessions with no end time are left open rather than given an assumed one. The
+ * board has to assume something to draw a row, but structured data is consumed
+ * by machines and republished, and a guess that travels that far stops looking
+ * like a guess.
  */
 function subEvent(
   session: StructuredSession,

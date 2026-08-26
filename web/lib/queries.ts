@@ -12,6 +12,7 @@ import postgres from "postgres";
 
 import { categories, events, series, sessions, venues } from "./schema.ts";
 import { type Selection } from "./selection.ts";
+import { isLive } from "./time.ts";
 
 // One pooled client per server instance, cached on globalThis so Next.js dev
 // hot-reloads reuse it instead of opening a fresh pool on every edit - which
@@ -189,31 +190,34 @@ function selectionFilter(selection: Selection) {
   return bySeries ?? byCategory;
 }
 
-/** Anything running right now, by start/end rather than by a stored flag. */
+/**
+ * Anything running right now, by start and end rather than by a stored flag.
+ *
+ * SQL selects candidates; `isLive` decides. How long a session runs when its
+ * source published no end depends on the kind of session, and that table lives
+ * in time.ts because the board and the calendar export need the same answer -
+ * duplicating it here as a SQL interval is how the two drift apart.
+ *
+ * The candidate window is wide enough for the longest session on the site. Le
+ * Mans runs for twenty-four hours, so anything narrower would quietly stop
+ * calling it live while it was still going.
+ */
 export async function getLiveSessions(
   selection: Selection = EMPTY,
   now = new Date(),
 ) {
-  const moment = now.toISOString();
-  return baseQuery()
+  const candidates = await baseQuery()
     .where(
       and(
         visible,
         selectionFilter(selection),
         lte(sessions.startsAtUtc, now),
-        or(
-          gte(sessions.endsAtUtc, now),
-          and(
-            isNull(sessions.endsAtUtc),
-            // A source that gives no end time: assume two hours. Written as one
-            // sql fragment with an explicit cast, because a raw fragment gives
-            // Drizzle no column type to infer the parameter from.
-            sql`${sessions.startsAtUtc} + interval '2 hours' >= ${moment}::timestamptz`,
-          ),
-        ),
+        gte(sessions.startsAtUtc, new Date(now.getTime() - 26 * 3_600_000)),
       ),
     )
-    .orderBy(asc(sessions.startsAtUtc));  
+    .orderBy(asc(sessions.startsAtUtc));
+
+  return candidates.filter((session) => isLive(session, now));
 }
 
 export async function getUpcomingSessions(

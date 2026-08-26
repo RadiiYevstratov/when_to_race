@@ -22,6 +22,8 @@ import {
   isValidTimeZone,
   offsetLabel,
   resolveTimeZone,
+  sessionEnd,
+  assumedDurationMinutes,
 } from "../lib/time.ts";
 
 import { buildCalendar, escapeText, foldLine, parseSelection } from "../lib/ics.ts";
@@ -207,12 +209,32 @@ describe("calendar export", () => {
     assert.ok(output.includes("STATUS:CANCELLED"));
   });
 
-  test("a session with no end time still gets one", () => {
-    const output = buildCalendar([{ ...session, endsAtUtc: null }], {
+  test("a session with no end time gets one sized to its kind", () => {
+    // A calendar entry has to have an end, so one is assumed - but a race and
+    // a warm-up assuming the same length is how a MotoGP race arrives in
+    // someone's calendar as an hour, or a warm-up blocks out ninety minutes.
+    const race = buildCalendar([{ ...session, endsAtUtc: null, sessionType: "race" }], {
       calendarName: "F1",
       now,
     });
-    assert.ok(output.includes("DTEND:20260906T150000Z"));
+    assert.ok(race.includes("DTEND:20260906T143000Z"), "race: 90 minutes");
+
+    const warmup = buildCalendar([{ ...session, endsAtUtc: null, sessionType: "warmup" }], {
+      calendarName: "F1",
+      now,
+    });
+    assert.ok(warmup.includes("DTEND:20260906T132000Z"), "warm-up: 20 minutes");
+  });
+
+  test("a zero-length end is not treated as an end", () => {
+    // MotoGP publishes every race this way. Passed straight through it would
+    // be a calendar entry with no duration at all.
+    const output = buildCalendar(
+      [{ ...session, endsAtUtc: MONZA_RACE, sessionType: "race" }],
+      { calendarName: "MotoGP", now },
+    );
+    assert.ok(output.includes("DTEND:20260906T143000Z"));
+    assert.ok(!output.includes("DTEND:20260906T130000Z"));
   });
 
   test("text is escaped", () => {
@@ -261,5 +283,58 @@ describe("calendar selection tokens", () => {
       seriesCodes: ["motogp"],
       categoryCodes: ["f2"],
     });
+  });
+});
+
+describe("when a session ends", () => {
+  // MotoGP publishes date_end identical to date_start for every race and
+  // sprint. Stored as an end, it meant a Grand Prix was never "running now".
+  const MOTOGP_RACE = {
+    startsAtUtc: "2026-03-01T08:00:00Z",
+    endsAtUtc: "2026-03-01T08:00:00Z",
+    sessionType: "race",
+  };
+
+  test("an end equal to the start is treated as no end at all", () => {
+    const end = sessionEnd(MOTOGP_RACE);
+    assert.equal(end.toISOString(), "2026-03-01T09:30:00.000Z"); // 90 minutes
+  });
+
+  test("a race with a zero-length end is live while it runs", () => {
+    assert.equal(isLive(MOTOGP_RACE, new Date("2026-03-01T08:30:00Z")), true);
+    assert.equal(isLive(MOTOGP_RACE, new Date("2026-03-01T07:59:00Z")), false);
+    assert.equal(isLive(MOTOGP_RACE, new Date("2026-03-01T10:00:00Z")), false);
+  });
+
+  test("a published end always wins over the assumption", () => {
+    const published = {
+      startsAtUtc: "2026-06-13T13:00:00Z",
+      endsAtUtc: "2026-06-14T13:00:00Z", // Le Mans, twenty-four hours
+      sessionType: "race",
+    };
+    assert.equal(sessionEnd(published).toISOString(), "2026-06-14T13:00:00.000Z");
+    // Still running twenty hours in, which a flat assumption would have missed.
+    assert.equal(isLive(published, new Date("2026-06-14T09:00:00Z")), true);
+  });
+
+  test("the assumption depends on the kind of session", () => {
+    assert.equal(assumedDurationMinutes("qualifying"), 45);
+    assert.equal(assumedDurationMinutes("race"), 90);
+    assert.equal(assumedDurationMinutes("warmup"), 20);
+    // An unknown type still gets an answer rather than a crash.
+    assert.equal(assumedDurationMinutes("something-new"), 60);
+    assert.equal(assumedDurationMinutes(null), 60);
+  });
+
+  test("a cancelled session is never live, whatever the clock says", () => {
+    assert.equal(
+      isLive({ ...MOTOGP_RACE, status: "cancelled" }, new Date("2026-03-01T08:30:00Z")),
+      false,
+    );
+  });
+
+  test("a session with no end at all falls back by type", () => {
+    const open = { startsAtUtc: "2026-03-01T08:00:00Z", endsAtUtc: null, sessionType: "practice" };
+    assert.equal(sessionEnd(open).toISOString(), "2026-03-01T09:00:00.000Z"); // 60 minutes
   });
 });

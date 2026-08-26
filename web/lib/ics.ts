@@ -12,10 +12,14 @@
 // found it at this address.
 export { parseSelection } from "./selection.ts";
 
+import { sessionEnd } from "./time.ts";
+
 export interface CalendarSession {
   icsUid: string;
   icsSequence: number;
   displayName: string;
+  /** Decides the assumed length when the source published no end time. */
+  sessionType?: string | null;
   seriesShortName: string;
   categoryShortName: string;
   eventName: string;
@@ -35,7 +39,7 @@ export interface CalendarOptions {
 }
 
 const DEFAULT_PRODUCT_ID = "-//motorsport-schedule//EN";
-const DEFAULT_DURATION_MS = 2 * 3_600_000;
+
 
 function stamp(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
@@ -88,11 +92,10 @@ function statusLine(session: CalendarSession): string | null {
 
 export function buildEvent(session: CalendarSession, now: Date): string[] {
   const start = session.startsAtUtc;
-  const end =
-    session.endsAtUtc ??
-    new Date(
-      (start instanceof Date ? start : new Date(start)).getTime() + DEFAULT_DURATION_MS,
-    );
+  // A published end where there is one, a stated assumption where there is
+  // not. Shared with the board so a subscribed calendar and the site never
+  // disagree about when something finishes.
+  const end = sessionEnd(session);
 
   const summary = `${session.categoryShortName}: ${session.displayName} - ${session.eventName}`;
   const provisional =
