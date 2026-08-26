@@ -143,32 +143,33 @@ export function SeriesFilter({
               <span className="truncate">{item.shortName}</span>
             </button>
 
-            {/* A series with one class needs no second chip repeating its name. */}
-            {runnable.length > 1
-              ? runnable.map((category) => {
-                  const on = isCategorySelected(selected, group, category.code);
-                  return (
-                    <button
-                      key={category.code}
-                      type="button"
-                      onClick={() => commit(toggleCategory(selected, group, category.code))}
-                      aria-pressed={on}
-                      className={`flex items-center gap-1.5 border px-2 py-1 font-mono text-xs ${
-                        on ? "border-ink text-ink" : "border-rule text-ink-faint hover:text-ink"
-                      }`}
-                    >
-                      {/* The same colour this class's rows carry on the board,
-                          so the chip and the schedule read as one thing. */}
-                      <span
-                        aria-hidden="true"
-                        className={`inline-block h-2 w-2 shrink-0 ${on ? "" : "opacity-60"}`}
-                        style={{ backgroundColor: category.accentColor }}
-                      />
-                      {category.shortName}
-                    </button>
-                  );
-                })
-              : null}
+            {/* Every series gets its chips, including the ones with a single
+                class. WEC repeating its own name is a small redundancy; a row
+                with a label and no chip at all read as a championship that had
+                not been finished yet, which is a worse thing to say. */}
+            {runnable.map((category) => {
+              const on = isCategorySelected(selected, group, category.code);
+              return (
+                <button
+                  key={category.code}
+                  type="button"
+                  onClick={() => commit(toggleCategory(selected, group, category.code))}
+                  aria-pressed={on}
+                  className={`flex items-center gap-1.5 border px-2 py-1 font-mono text-xs ${
+                    on ? "border-ink text-ink" : "border-rule text-ink-faint hover:text-ink"
+                  }`}
+                >
+                  {/* The same colour this class's rows carry on the board, so
+                      the chip and the schedule read as one thing. */}
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block h-2 w-2 shrink-0 ${on ? "" : "opacity-60"}`}
+                    style={{ backgroundColor: category.accentColor }}
+                  />
+                  {category.shortName}
+                </button>
+              );
+            })}
           </div>
         );
       })}
