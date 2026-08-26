@@ -82,6 +82,15 @@ export function formatTime(value: string | Date, timeZone: string, hour12 = fals
   return `${hour}:${parts.minute}`;
 }
 
+/**
+ * An IANA zone as a person reads it: "Europe/Bratislava" has an underscore in
+ * roughly a third of real zone names, and "America/New_York" in a header looks
+ * like a bug. Written out five separate times before this existed.
+ */
+export function formatZoneName(timeZone: string): string {
+  return timeZone.replace(/_/g, " ");
+}
+
 export function formatDayHeading(key: DayKey, timeZone: string): string {
   const date = new Date(`${key}T12:00:00Z`);
   return new Intl.DateTimeFormat("en-GB", {

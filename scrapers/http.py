@@ -18,7 +18,9 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 from urllib.parse import urlparse
 
-CONTACT_URL = "https://github.com/RadiiYevstratov/when_to_race.git"
+# A page a site owner can actually open if they want to know who this is.
+# The clone URL is not that page.
+CONTACT_URL = "https://github.com/RadiiYevstratov/when_to_race"
 USER_AGENT = f"MotorsportScheduleBot/0.1 (+{CONTACT_URL})"
 
 MIN_INTERVAL_SECONDS = 2.0
