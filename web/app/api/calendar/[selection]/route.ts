@@ -58,6 +58,7 @@ export async function GET(
     // assumed length rather than the one for its kind - a 90-minute race
     // arriving in someone's calendar as an hour.
     sessionType: row.sessionType,
+    seriesCode: row.seriesCode,
     seriesShortName: row.seriesShortName,
     categoryShortName: row.categoryShortName,
     eventName: row.eventName,

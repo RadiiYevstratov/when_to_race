@@ -182,7 +182,7 @@ export default async function WeekendPage({ params }: PageProps) {
         ) : null}
       </header>
 
-      <DayBoard sessions={weekend.sessions} timeZone={timeZone} now={now} />
+      <DayBoard sessions={weekend.sessions} timeZone={timeZone} now={now} headingLevel={2} />
 
       <footer className="space-y-3 border-t border-rule pt-4 text-xs text-ink-muted">
         <p>

@@ -256,15 +256,41 @@ const ASSUMED_MINUTES: Record<string, number> = {
 
 const FALLBACK_MINUTES = 60;
 
-export function assumedDurationMinutes(sessionType?: string | null): number {
+/**
+ * Where a championship differs enough from the general case to matter.
+ *
+ * A single figure per session type is too blunt for "race": a WorldSBK race is
+ * a quarter of an hour and a Formula 1 race is over an hour, so one number
+ * would leave one of them marked live long after the flag. These are the
+ * medians measured per series, and only where the gap is worth a special case.
+ *
+ * MotoGP races and sprints publish no end at all, so nothing can be measured
+ * for them - those two are the scheduled distances, which is the best figure
+ * available and still far closer than the general default.
+ */
+const ASSUMED_MINUTES_BY_SERIES: Record<string, Record<string, number>> = {
+  f1: { practice: 60, qualifying: 60, sprint: 50, race: 70 },
+  motogp: { practice: 35, qualifying: 15, warmup: 10, sprint: 25, race: 50 },
+  wsbk: { practice: 40, qualifying: 25, warmup: 10, race: 25 },
+  // WEC publishes an end for every race, so only the untimed sessions matter.
+  wec: { practice: 90, qualifying: 30, warmup: 15 },
+};
+
+export function assumedDurationMinutes(
+  sessionType?: string | null,
+  seriesCode?: string | null,
+): number {
   if (!sessionType) return FALLBACK_MINUTES;
-  return ASSUMED_MINUTES[sessionType] ?? FALLBACK_MINUTES;
+  const bySeries = seriesCode ? ASSUMED_MINUTES_BY_SERIES[seriesCode]?.[sessionType] : undefined;
+  return bySeries ?? ASSUMED_MINUTES[sessionType] ?? FALLBACK_MINUTES;
 }
 
 export interface HasSpan {
   startsAtUtc: string | Date;
   endsAtUtc?: string | Date | null;
   sessionType?: string | null;
+  /** Optional: sharpens the assumption where a championship differs. */
+  seriesCode?: string | null;
 }
 
 /**
@@ -282,7 +308,8 @@ export function sessionEnd(session: HasSpan): Date {
     // strips these, but a row written before that rule existed can still exist.
     if (end.getTime() > start.getTime()) return end;
   }
-  return new Date(start.getTime() + assumedDurationMinutes(session.sessionType) * 60_000);
+  const minutes = assumedDurationMinutes(session.sessionType, session.seriesCode);
+  return new Date(start.getTime() + minutes * 60_000);
 }
 
 /** True while the session is running: after the start, before the end. */

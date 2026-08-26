@@ -57,6 +57,14 @@ export default async function HomePage({
 
   return (
     <div className="space-y-10">
+      {/* The page's visible identity is the wordmark in the header, and a
+          second title under it would be noise on a board whose entire job is
+          to be read at a glance. It still needs a heading: without one a
+          screen reader has no name for the page, and this was the only page on
+          the site with no h1 at all. */}
+      <h1 className="sr-only">
+        Motorsport schedule &mdash; what is on now and what is coming up
+      </h1>
       {live.length > 0 ? (
         <section aria-labelledby="live-heading">
           <h2 id="live-heading" className="eyebrow border-b border-ink pb-1.5 text-live">

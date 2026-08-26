@@ -18,8 +18,9 @@ export interface CalendarSession {
   icsUid: string;
   icsSequence: number;
   displayName: string;
-  /** Decides the assumed length when the source published no end time. */
+  /** Together these decide the assumed length when no end was published. */
   sessionType?: string | null;
+  seriesCode?: string | null;
   seriesShortName: string;
   categoryShortName: string;
   eventName: string;

@@ -326,6 +326,30 @@ describe("when a session ends", () => {
     assert.equal(assumedDurationMinutes(null), 60);
   });
 
+  test("and on the championship, where they differ enough to matter", () => {
+    // A WorldSBK race is a quarter of an hour; a Formula 1 race is over one.
+    // One figure for both would leave one of them live long after the flag.
+    assert.equal(assumedDurationMinutes("race", "wsbk"), 25);
+    assert.equal(assumedDurationMinutes("race", "motogp"), 50);
+    assert.equal(assumedDurationMinutes("race", "f1"), 70);
+    // A series with no entry falls back to the general figure.
+    assert.equal(assumedDurationMinutes("race", "indycar"), 90);
+    assert.equal(assumedDurationMinutes("shakedown", "motogp"), 60);
+  });
+
+  test("a WorldSBK race is not still live an hour after it finished", () => {
+    const race = {
+      startsAtUtc: "2026-03-01T13:00:00Z",
+      endsAtUtc: null,
+      sessionType: "race",
+      seriesCode: "wsbk",
+    };
+    assert.equal(isLive(race, new Date("2026-03-01T13:10:00Z")), true);
+    assert.equal(isLive(race, new Date("2026-03-01T13:40:00Z")), false);
+    // The generic assumption would still have called this live.
+    assert.equal(isLive({ ...race, seriesCode: null }, new Date("2026-03-01T13:40:00Z")), true);
+  });
+
   test("a cancelled session is never live, whatever the clock says", () => {
     assert.equal(
       isLive({ ...MOTOGP_RACE, status: "cancelled" }, new Date("2026-03-01T08:30:00Z")),
