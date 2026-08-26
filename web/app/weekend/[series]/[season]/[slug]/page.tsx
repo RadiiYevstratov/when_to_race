@@ -13,6 +13,7 @@ import { DayBoard } from "../../../../../components/board.tsx";
 import { CircuitArt } from "../../../../../components/circuit-art.tsx";
 import { JsonLd } from "../../../../../components/json-ld.tsx";
 import { readPreferences } from "../../../../../lib/preferences.ts";
+import { parseSeason } from "../../../../../lib/season.ts";
 import { getAdjacentEvents, getWeekend } from "../../../../../lib/queries.ts";
 import {
   breadcrumbJsonLd,
@@ -50,8 +51,11 @@ function describe(event: {
 
 export async function generateMetadata({ params }: PageProps) {
   const { series, season, slug } = await params;
-  const weekend = await getWeekend(series, Number(season), slug);
-  if (!weekend) return { title: "Weekend not found" };
+  const seasonNumber = parseSeason(season);
+  if (seasonNumber === null) return { title: "Not found", robots: { index: false } };
+
+  const weekend = await getWeekend(series, seasonNumber, slug);
+  if (!weekend) return { title: "Not found", robots: { index: false } };
 
   const event = weekend.event;
   const title = `${event.eventName} ${event.season} - session times`;
@@ -69,8 +73,10 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function WeekendPage({ params }: PageProps) {
   const { series, season, slug } = await params;
-  const seasonNumber = Number(season);
-  if (!Number.isInteger(seasonNumber)) notFound();
+  // Range-checked, not just "is it a number": `season` is a Postgres integer,
+  // so an absurd one is a database error rather than an empty result.
+  const seasonNumber = parseSeason(season);
+  if (seasonNumber === null) notFound();
 
   const weekend = await getWeekend(series, seasonNumber, slug);
   if (!weekend) notFound();
