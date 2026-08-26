@@ -12,6 +12,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 
+import { apexRedirectTarget, canonicalHost } from "./lib/canonical-host.ts";
+
 export const config = {
   // Everything a person can navigate to. Next's own build output and the icon
   // files are excluded: they are never reached by the wrong hostname in a way
@@ -112,23 +114,29 @@ function misconfigured(password: string): string | null {
   return null;
 }
 
+/** Resolved once: the origin is fixed at build time. */
+const CANONICAL_HOST = canonicalHost(process.env.NEXT_PUBLIC_SITE_URL);
+
 /**
  * Send www to the bare domain, once and permanently.
  *
- * Only ever strips a leading "www.", so the target can never itself start with
- * one and the redirect cannot loop. The scheme comes from the forwarded header
- * because the app sits behind a proxy that terminates TLS.
+ * The rule itself lives in lib/canonical-host.ts, where it is tested. It has to
+ * be a rule rather than a string operation because the Host header is
+ * attacker-controlled: stripping "www." from whatever arrives and redirecting
+ * there had this server answering `Host: www.evil.example` with a 308 to
+ * `https://evil.example/`.
  */
 function apexRedirect(request: NextRequest): NextResponse | null {
-  const host = request.headers.get("host");
-  if (!host?.toLowerCase().startsWith("www.")) return null;
-
-  // Built as a string rather than by mutating nextUrl: assigning `protocol` on
-  // a cloned URL does not reliably stick, and silently emitting http:// would
-  // cost every visitor an extra hop through the TLS redirect.
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  const { pathname, search } = request.nextUrl;
-  return NextResponse.redirect(`${proto}://${host.slice(4)}${pathname}${search}`, 308);
+  const target = apexRedirectTarget(
+    {
+      host: request.headers.get("host"),
+      forwardedProto: request.headers.get("x-forwarded-proto"),
+      pathname: request.nextUrl.pathname,
+      search: request.nextUrl.search,
+    },
+    CANONICAL_HOST,
+  );
+  return target ? NextResponse.redirect(target, 308) : null;
 }
 
 export function middleware(request: NextRequest) {
