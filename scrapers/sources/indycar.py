@@ -111,28 +111,36 @@ _MONTHS = {name.lower(): number for number, name in enumerate(calendar.month_abb
 _MONTHS.update({name.lower(): number for number, name in enumerate(calendar.month_name) if name})
 _WEEKDAYS = {name.lower(): number for number, name in enumerate(calendar.day_name)}
 
-# Round token -> venue slug. Keyed on the URL token because it is the one part
-# of a round that a title sponsor cannot rename: the page heading for Barber is
-# "Children's of Alabama Indy Grand Prix", which names neither the circuit nor
-# the city.
-_VENUE_BY_ROUND = {
-    "st-petersburg": "st_petersburg",
-    "phoenix": "phoenix",
-    "arlington": "arlington",
-    "barber": "barber",
-    "long-beach": "long_beach",
-    "indianapolis": "indianapolis",
-    "indianapolis-500": "indianapolis",
-    "detroit": "detroit",
-    "wwtr": "wwtr",
-    "road-america": "road_america",
-    "mid-ohio": "mid_ohio",
-    "laguna-seca": "laguna_seca",
-    "nashville": "nashville_superspeedway",
-    "portland": "portland",
-    "markham": "markham",
-    "washington-dc": "washington_dc",
-    "milwaukee": "milwaukee",
+# Round token -> (venue slug, the name this weekend is shown under).
+#
+# Keyed on the URL token because it is the one part of a round that a title
+# sponsor cannot rename: the page heading for Barber is "Children's of Alabama
+# Indy Grand Prix", which names neither the circuit nor the city, and reads
+# differently every year the sponsorship changes.
+#
+# The name is spelled out rather than derived, because the two Indianapolis
+# rounds are a fortnight apart at one facility and nothing about the venue
+# distinguishes them - the road-course Grand Prix in early May and the 500 in
+# late May would otherwise share a name, and an event name is what events are
+# grouped by. It is what the page is headed with that goes in `official_name`.
+_ROUNDS: dict[str, tuple[str, str]] = {
+    "st-petersburg": ("st_petersburg", "St. Petersburg"),
+    "phoenix": ("phoenix", "Phoenix"),
+    "arlington": ("arlington", "Arlington"),
+    "barber": ("barber", "Barber"),
+    "long-beach": ("long_beach", "Long Beach"),
+    "indianapolis": ("indianapolis", "Indianapolis GP"),
+    "indianapolis-500": ("indianapolis", "Indianapolis 500"),
+    "detroit": ("detroit", "Detroit"),
+    "wwtr": ("wwtr", "World Wide Technology Raceway"),
+    "road-america": ("road_america", "Road America"),
+    "mid-ohio": ("mid_ohio", "Mid-Ohio"),
+    "laguna-seca": ("laguna_seca", "Laguna Seca"),
+    "nashville": ("nashville_superspeedway", "Nashville"),
+    "portland": ("portland", "Portland"),
+    "markham": ("markham", "Markham"),
+    "washington-dc": ("washington_dc", "Washington DC"),
+    "milwaukee": ("milwaukee", "Milwaukee"),
 }
 
 # The class a schedule row belongs to, from the prefix the site puts before the
@@ -210,8 +218,8 @@ class IndyCarSource:
         token = document.url.rstrip("/").rsplit("/", 1)[-1].lower()
         # Both Milwaukee pages become one event named for the weekend, not for
         # either race.
-        event_name = _DOUBLEHEADER.sub("", token)
-        venue_slug = _VENUE_BY_ROUND.get(event_name)
+        round_token = _DOUBLEHEADER.sub("", token)
+        venue_slug, event_name = _ROUNDS.get(round_token, (None, None))
         if venue_slug is None or venue_slug not in venues:
             logger.warning("indycar: round %s maps to no known venue; sessions dropped", token)
             return

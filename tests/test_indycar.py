@@ -271,7 +271,7 @@ class ScheduleRowTests(unittest.TestCase):
         )
         parsed = self._parse("https://www.indycar.com/Schedule/2026/Barber", body)
         self.assertEqual(parsed[0].official_name, "Children's of Alabama Indy Grand Prix")
-        self.assertEqual(parsed[0].event_name, "barber")
+        self.assertEqual(parsed[0].event_name, "Barber")
         self.assertEqual(parsed[0].venue_slug, "barber")
 
 
@@ -314,9 +314,10 @@ class ConfigTests(unittest.TestCase):
 
     def test_every_round_maps_to_a_venue_that_exists(self):
         """A venue slug with no entry is a session at no timezone at all."""
-        from scrapers.sources.indycar import _VENUE_BY_ROUND
+        from scrapers.sources.indycar import _ROUNDS
 
         venues = load_venues()
-        for round_token, slug in _VENUE_BY_ROUND.items():
+        for round_token, (slug, name) in _ROUNDS.items():
             with self.subTest(round=round_token):
                 self.assertIn(slug, venues)
+                self.assertTrue(name and name[0].isupper(), name)
