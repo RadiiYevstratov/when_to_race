@@ -46,9 +46,9 @@ function getDb(): ReturnType<typeof drizzle> {
     globalForDb.pgClient ?? postgres(connectionString, { prepare: false, max: 3 });
   const instance = drizzle(client);
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForDb.pgClient = client;
-  }
+  // Cached in every environment: outside production it stops hot reloads
+  // leaking pools, and everywhere it gives closeDb something to close.
+  globalForDb.pgClient = client;
   globalForDb.drizzleDb = instance;
   return instance;
 }
@@ -65,6 +65,21 @@ export const db = new Proxy({} as ReturnType<typeof drizzle>, {
 
 /** No filter at all: the default, and what most visitors want. */
 const EMPTY: Selection = { seriesCodes: [], categoryCodes: [] };
+
+/**
+ * Close the pool.
+ *
+ * Nothing in the request path needs this - a server keeps its connections for
+ * its lifetime. It exists for anything that runs queries and then has to exit:
+ * a test run or a one-off script otherwise hangs forever on an idle socket
+ * holding the event loop open.
+ */
+export async function closeDb(): Promise<void> {
+  const client = globalForDb.pgClient;
+  globalForDb.pgClient = undefined;
+  globalForDb.drizzleDb = undefined;
+  if (client) await client.end({ timeout: 5 });
+}
 
 export interface SessionRow {
   id: number;
