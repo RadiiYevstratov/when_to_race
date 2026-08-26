@@ -193,6 +193,23 @@ function RoundRow({
         >
           {event.name}
         </Link>
+        {/* The classes actually running that weekend. A round listed only as
+            "Formula 1" says nothing about the two championships sharing it. */}
+        <span className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
+          {event.classes.map((item) => (
+            <span
+              key={item.code}
+              className="flex items-center gap-1 font-mono text-[0.625rem] text-ink-faint"
+            >
+              <span
+                aria-hidden="true"
+                className="inline-block h-1.5 w-1.5 shrink-0"
+                style={{ backgroundColor: item.accentColor }}
+              />
+              {item.shortName}
+            </span>
+          ))}
+        </span>
       </span>
       <span className="tnum shrink-0 font-mono text-xs text-ink-muted">{span}</span>
       {event.status === "cancelled" ? (

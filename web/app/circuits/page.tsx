@@ -79,20 +79,25 @@ export default async function CircuitsPage() {
                 </span>
 
                 <span className="mt-2 line-clamp-2 text-sm leading-snug">{circuit.name}</span>
-                <span className="mt-0.5 font-mono text-xs text-ink-faint">
+                <span className="mt-0.5 grow font-mono text-xs text-ink-faint">
                   {circuit.city ? `${circuit.city} · ` : ""}
                   {circuit.countryCode}
                 </span>
 
-                <span className="mt-2 flex flex-wrap gap-1.5">
-                  {circuit.series.map((item) => (
+                {/* Classes rather than championships: "Formula 1" at Albert
+                    Park hides that Formula 2 and Formula 3 are there too, and
+                    what races here is the whole question this page answers.
+                    Pushed to the bottom of the card so the rows stay aligned
+                    however many there are - Assen and Barcelona have seven. */}
+                <span className="mt-2 flex flex-wrap gap-x-1.5 gap-y-1 pt-1">
+                  {circuit.classes.map((item) => (
                     <span
                       key={item.code}
-                      className="flex items-center gap-1 font-mono text-[0.625rem] text-ink-faint"
+                      className="flex items-center gap-1 font-mono text-[0.625rem] leading-tight text-ink-faint"
                     >
                       <span
                         aria-hidden="true"
-                        className="inline-block h-1.5 w-1.5"
+                        className="inline-block h-1.5 w-1.5 shrink-0"
                         style={{ backgroundColor: item.accentColor }}
                       />
                       {item.shortName}

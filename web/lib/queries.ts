@@ -397,38 +397,39 @@ export async function getVenueBySlug(slug: string) {
 }
 
 /**
- * Every circuit that has a round, with who races there.
+ * Every circuit that has a round, with the classes that race there.
+ *
+ * Classes rather than championships, because the championship is the coarser
+ * and less useful answer: Albert Park says "Formula 1" when what runs there is
+ * Formula 1, Formula 2 and Formula 3, and the whole point of a circuit page is
+ * everything that happens at the place.
+ *
+ * That means joining through sessions - a class is only attached to a venue by
+ * the sessions it runs there - so a class that shares a weekend appears exactly
+ * where it actually turns up rather than everywhere its championship goes.
  *
  * Ordered by name rather than by date: this is an index someone scans looking
  * for a place they know, not a schedule.
  */
 export async function getCircuitIndex() {
   const rows = await db
-    .select({
+    .selectDistinct({
       slug: venues.slug,
       name: venues.name,
       city: venues.city,
       countryCode: venues.countryCode,
-      seriesCode: series.code,
-      seriesShortName: series.shortName,
-      accentColor: series.accentColor,
+      categoryCode: categories.code,
+      categoryShortName: categories.shortName,
+      accentColor: sql<string>`coalesce(${categories.accentColor}, ${series.accentColor})`,
       seriesSortOrder: series.sortOrder,
-      nextStart: sql<Date | null>`min(${events.startsAtUtc})`,
+      categorySortOrder: categories.sortOrder,
     })
     .from(venues)
     .innerJoin(events, and(eq(events.venueId, venues.id), isNull(events.retiredAt)))
     .innerJoin(series, and(eq(series.id, events.seriesId), eq(series.isActive, true)))
-    .groupBy(
-      venues.slug,
-      venues.name,
-      venues.city,
-      venues.countryCode,
-      series.code,
-      series.shortName,
-      series.accentColor,
-      series.sortOrder,
-    )
-    .orderBy(asc(venues.name), asc(series.sortOrder));
+    .innerJoin(sessions, and(eq(sessions.eventId, events.id), isNull(sessions.retiredAt)))
+    .innerJoin(categories, eq(categories.id, sessions.categoryId))
+    .orderBy(asc(venues.name), asc(series.sortOrder), asc(categories.sortOrder));
 
   const grouped = new Map<
     string,
@@ -437,7 +438,7 @@ export async function getCircuitIndex() {
       name: string;
       city: string | null;
       countryCode: string;
-      series: { code: string; shortName: string; accentColor: string }[];
+      classes: { code: string; shortName: string; accentColor: string }[];
     }
   >();
 
@@ -449,15 +450,17 @@ export async function getCircuitIndex() {
         name: row.name,
         city: row.city,
         countryCode: row.countryCode,
-        series: [],
+        classes: [],
       };
       grouped.set(row.slug, circuit);
     }
-    circuit.series.push({
-      code: row.seriesCode,
-      shortName: row.seriesShortName,
-      accentColor: row.accentColor,
-    });
+    if (!circuit.classes.some((item) => item.code === row.categoryCode)) {
+      circuit.classes.push({
+        code: row.categoryCode,
+        shortName: row.categoryShortName,
+        accentColor: row.accentColor,
+      });
+    }
   }
 
   return [...grouped.values()];
@@ -480,8 +483,8 @@ export async function getVisitedVenueSlugs(): Promise<string[]> {
  * the weekend, not one series' slice of it.
  */
 export async function getEventsAtVenue(slug: string) {
-  return db
-    .select({
+  const rows = await db
+    .selectDistinct({
       slug: events.slug,
       name: events.name,
       season: events.season,
@@ -492,12 +495,51 @@ export async function getEventsAtVenue(slug: string) {
       seriesCode: series.code,
       seriesShortName: series.shortName,
       accentColor: series.accentColor,
+      categoryCode: categories.code,
+      categoryShortName: categories.shortName,
+      categoryAccentColor: sql<string>`coalesce(${categories.accentColor}, ${series.accentColor})`,
+      categorySortOrder: categories.sortOrder,
     })
     .from(events)
     .innerJoin(series, eq(series.id, events.seriesId))
     .innerJoin(venues, eq(venues.id, events.venueId))
+    .innerJoin(sessions, and(eq(sessions.eventId, events.id), isNull(sessions.retiredAt)))
+    .innerJoin(categories, eq(categories.id, sessions.categoryId))
     .where(and(isNull(events.retiredAt), eq(venues.slug, slug), eq(series.isActive, true)))
-    .orderBy(asc(events.startsAtUtc));
+    .orderBy(asc(events.startsAtUtc), asc(categories.sortOrder));
+
+  // One row per event, carrying the classes that run at it.
+  const grouped = new Map<
+    string,
+    Omit<(typeof rows)[number], "categoryCode" | "categoryShortName" | "categoryAccentColor" | "categorySortOrder"> & {
+      classes: { code: string; shortName: string; accentColor: string }[];
+    }
+  >();
+
+  for (const row of rows) {
+    const key = `${row.seriesCode}-${row.season}-${row.slug}`;
+    let event = grouped.get(key);
+    if (!event) {
+      const {
+        categoryCode: _c,
+        categoryShortName: _s,
+        categoryAccentColor: _a,
+        categorySortOrder: _o,
+        ...rest
+      } = row;
+      event = { ...rest, classes: [] };
+      grouped.set(key, event);
+    }
+    if (!event.classes.some((item) => item.code === row.categoryCode)) {
+      event.classes.push({
+        code: row.categoryCode,
+        shortName: row.categoryShortName,
+        accentColor: row.categoryAccentColor,
+      });
+    }
+  }
+
+  return [...grouped.values()];
 }
 
 /** The circuits one class visits in a season, in calendar order. */
