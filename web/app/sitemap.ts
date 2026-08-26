@@ -17,6 +17,9 @@ import { circuitPath, seasonPath, seriesPath } from "../lib/structured-data.ts";
  * require database credentials (see lib/queries.ts). Requesting it live also
  * means a newly scraped round appears in the sitemap without a redeploy.
  *
+ * On a database failure this fails rather than shrinking - see the catch at the
+ * end for why a truncated sitemap is worse than none.
+ *
  * No lastModified anywhere. The obvious candidate, events.updated_at, is
  * touched by every scrape whether or not anything changed, so it would claim
  * the whole site changes four times a day; the previous version used the
@@ -86,9 +89,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
 
     return [...staticPages, ...weekends];
-  } catch {
-    // A sitemap missing its event pages is far better than a 500 that tells
-    // search engines the whole site is broken.
-    return staticPages;
+  } catch (error) {
+    // Deliberately not degrading to the five static pages here, which is what
+    // this used to do. A sitemap that lists five URLs when the site has 126 is
+    // not a smaller truth, it is a wrong one: it tells a crawler those are the
+    // pages, and the 121 it listed yesterday are withdrawn.
+    //
+    // Failing is the honest answer. A crawler treats a 5xx on a sitemap as
+    // "come back later" and keeps the copy it already has, which is exactly
+    // what should happen while a database is briefly unreachable.
+    console.error("sitemap unavailable; the database could not be reached", error);
+    throw error;
   }
 }

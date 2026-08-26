@@ -16,7 +16,8 @@ export default function robots(): MetadataRoute.Robots {
       // ever point at.
       disallow: ["/admin", "/api/"],
     },
+    // Advertising the sitemap here is what actually gets it discovered:
+    // submitting it in Search Console only makes the status visible.
     sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
   };
 }
