@@ -28,6 +28,24 @@ class ClassificationTests(unittest.TestCase):
         for name in ("Qualifying", "Qualifying 1", "Q2", "Hyperpole", "Superpole"):
             self.assertEqual(classify_session_type(name), "qualifying", name)
 
+    def test_indycar_spells_it_qualifications(self):
+        """The plural was the gap: a word boundary does not match before an "s"."""
+        for name in ("Qualifications", "Qualification", "Qualifying (Firestone Fast 6)"):
+            self.assertEqual(classify_session_type(name), "qualifying", name)
+
+    def test_the_build_up_to_a_race_is_not_a_race(self):
+        """IndyCar lists a "Pre-Race" ninety minutes before the Indianapolis 500.
+
+        The word "race" is inside it, so the general rule would call it one -
+        and a second Indy 500 would appear on the board at an hour nobody goes
+        green. The real race must still classify as a race, including the ones
+        whose names are unusual.
+        """
+        for name in ("Pre-Race", "Pre Race Show", "Post-Race", "Post-Race Show"):
+            self.assertEqual(classify_session_type(name), "other", name)
+        for name in ("Race", "Race 2", "Feature Race", "Superpole Race", "Grand Prix"):
+            self.assertEqual(classify_session_type(name), "race", name)
+
     def test_superpole_race_is_a_race_not_qualifying(self):
         # WorldSBK's Sunday morning race. Getting this wrong hides a race.
         self.assertEqual(classify_session_type("Superpole Race"), "race")

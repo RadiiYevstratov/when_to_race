@@ -53,8 +53,16 @@ _SESSION_TYPE_RULES: tuple[tuple[str, str], ...] = (
     (r"\b(free\s+practice|practice)\b", "practice"),
     (r"^fp\s*\d*$", "practice"),
     (r"^p\d+$", "practice"),
-    (r"\b(qualifying|qualification|quali|hyperpole|superpole)\b", "qualifying"),
+    # IndyCar says "Qualifications", so the plural has to be here as well - the
+    # word boundary after "qualification" does not match before an "s".
+    (r"\b(qualifying|qualifications?|quali|hyperpole|superpole)\b", "qualifying"),
     (r"^q\d*$", "qualifying"),
+    # The build-up and the aftermath are not the race, and they appear on the
+    # same timetable as it: IndyCar lists a "Pre-Race" ninety minutes before
+    # the Indianapolis 500. Typed as a race that is a second Indy 500 on the
+    # board at an hour nobody goes green, so it has to be caught before the
+    # general rule below finds the word "race" inside it.
+    (r"\b(pre|post)[\s-]*race\b", "other"),
     # F2 and F3 call their main race the "Feature", frequently with no
     # "race" after it. Safe here because the sprint rules above already ran.
     (r"\b(feature(\s+race)?|race|grand\s+prix)\b", "race"),
