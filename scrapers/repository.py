@@ -20,6 +20,7 @@ class AppliedCounts:
     created: int = 0
     updated: int = 0
     retired: int = 0
+    events_retired: int = 0
     revived: int = 0
     changes_logged: int = 0
 
@@ -69,6 +70,7 @@ class InMemoryRepository:
     def __init__(self) -> None:
         self.sessions: dict[tuple[str, int, tuple], _StoredSession] = {}
         self.events: dict[tuple[str, int, str], NormalizedEvent] = {}
+        self.retired_events: set[tuple[str, int, str]] = set()
         self.changes: list[tuple] = []
         self.runs: list[dict] = []
         self.last_scraped: dict[str, datetime] = {}
@@ -185,6 +187,26 @@ class InMemoryRepository:
             if stored.record.retired_at is not None:
                 stored.record.retired_at = None
                 counts.revived += 1
+
+        # An event with no live sessions left is not a race weekend any more.
+        # See the same rule in db.py, which is the one that matters; this keeps
+        # a dry run honest about what a real run would do.
+        live_slugs = {
+            stored.record.event_slug
+            for key, stored in self.sessions.items()
+            if key[0] == series_code and key[1] == season and stored.record.retired_at is None
+        }
+        for slug in [
+            key[2]
+            for key in self.events
+            if key[0] == series_code and key[1] == season and key[2] not in live_slugs
+        ]:
+            if (series_code, season, slug) not in self.retired_events:
+                self.retired_events.add((series_code, season, slug))
+                counts.events_retired += 1
+
+        for slug in live_slugs:
+            self.retired_events.discard((series_code, season, slug))
 
         return counts
 

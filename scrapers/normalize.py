@@ -11,6 +11,8 @@ in scrapers/sources/.
 
 from __future__ import annotations
 
+import logging
+
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -26,6 +28,9 @@ from .records import (
     ensure_utc,
     slugify,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class NormalizeError(Exception):
@@ -48,8 +53,16 @@ _SESSION_TYPE_RULES: tuple[tuple[str, str], ...] = (
     (r"\b(free\s+practice|practice)\b", "practice"),
     (r"^fp\s*\d*$", "practice"),
     (r"^p\d+$", "practice"),
-    (r"\b(qualifying|qualification|quali|hyperpole|superpole)\b", "qualifying"),
+    # IndyCar says "Qualifications", so the plural has to be here as well - the
+    # word boundary after "qualification" does not match before an "s".
+    (r"\b(qualifying|qualifications?|quali|hyperpole|superpole)\b", "qualifying"),
     (r"^q\d*$", "qualifying"),
+    # The build-up and the aftermath are not the race, and they appear on the
+    # same timetable as it: IndyCar lists a "Pre-Race" ninety minutes before
+    # the Indianapolis 500. Typed as a race that is a second Indy 500 on the
+    # board at an hour nobody goes green, so it has to be caught before the
+    # general rule below finds the word "race" inside it.
+    (r"\b(pre|post)[\s-]*race\b", "other"),
     # F2 and F3 call their main race the "Feature", frequently with no
     # "race" after it. Safe here because the sprint rules above already ran.
     (r"\b(feature(\s+race)?|race|grand\s+prix)\b", "race"),
@@ -151,6 +164,44 @@ def _resolve_start(
         end_utc = None
 
     return start_utc, end_utc, tz_override
+
+
+def _flag_impossible_overlaps(sessions: list) -> None:
+    """Mark sessions that a source says run at the same instant as each other.
+
+    One class cannot be doing two things at once, so two sessions of the same
+    category sharing a start is not a schedule - it is a schedule with a
+    mistake in it. F1 Academy publishes Montreal's two qualifying sessions at
+    identical times, down to the minute.
+
+    Which of the two is wrong is not knowable from here, and guessing a
+    correction would be worse than saying nothing. What *is* knowable is that
+    the times are not final, so they are marked provisional - which the board
+    already renders as "confirm before setting an alarm". Both sessions are
+    kept: they are real sessions, and dropping one would hide a race.
+    """
+    seen: dict = defaultdict(list)
+    for session in sessions:
+        # A day-precision session has a synthetic time by design - it is an
+        # anchor for the date, not a claim about the clock - so several of them
+        # sharing an instant is expected rather than a contradiction.
+        if session.start_precision != "exact":
+            continue
+        seen[(session.category_code, session.start_utc)].append(session)
+
+    for (category, start), clashing in seen.items():
+        if len(clashing) < 2:
+            continue
+        names = ", ".join(sorted(item.display_name for item in clashing))
+        logger.warning(
+            "%s: %d sessions share a start at %s (%s); marking them provisional",
+            category,
+            len(clashing),
+            start.isoformat(),
+            names,
+        )
+        for item in clashing:
+            item.time_status = "provisional"
 
 
 def _assign_sequences(sessions: list[tuple[ParsedSession, str]]) -> dict[int, int]:
@@ -260,6 +311,8 @@ def normalize(
                     source_url=parsed.source_url,
                 )
             )
+
+        _flag_impossible_overlaps(normalized_sessions)
 
         starts = [session.start_utc for session in normalized_sessions]
         ends = [session.end_utc or session.start_utc for session in normalized_sessions]
