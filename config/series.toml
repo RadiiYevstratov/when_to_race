@@ -226,8 +226,24 @@ short_name = "IMSA"
 accent_color = "#7A4FBF"
 sort_order = 60
 [series.source]
+# HELD, and never run against the live database. Two independent reasons:
+#
+#   1. The same NASCAR Digital Media Terms of Use quoted under nascar above -
+#      imsa.com is where that document is served from.
+#   2. imsa.com's front door answers 403 to this project's HTTP client while
+#      serving the identical request from Python's standard library. It is not
+#      about who we say we are: the block does not depend on the User-Agent.
+#      Working around that would mean disguising the client, which is the
+#      opposite of the good-citizen rule.
+#
+# Read 27 August 2026. The adapter is written and tested and can be turned on
+# the day there is written permission.
 adapter = "imsa"
 status = "unverified"
+# The site's own WordPress post list. Every event is a post with a link, and
+# each event page carries its weekend timetable - the API lists events but not
+# their sessions.
+url = "https://www.imsa.com/wp-json/wp/v2/schedule"
 discovery_notes = "docs/sources.md#imsa"
 [[series.categories]]
 code = "imsa_wtsc"
@@ -248,8 +264,19 @@ short_name = "IndyCar"
 accent_color = "#0C7C8C"
 sort_order = 70
 [series.source]
+# HELD. The adapter works and is tested; the Terms of Use are the blocker.
+#
+# indycar.com Terms of Use, read 27 August 2026: "use an automatic device (such
+# as a robot or spider) or manual process to copy or 'scrape' the Services (or
+# any portion thereof) or Service Content for any purpose without our express
+# written permission" is listed among the prohibited uses.
+#
+# Rule 1 in docs/sources.md is to stop and flag rather than proceed on the
+# theory that the data is public, so this stays unverified until IndyCar gives
+# written permission or another route is found. --allow-unverified still runs
+# it deliberately.
 adapter = "indycar"
-status = "live"
+status = "unverified"
 # The season index. Rounds are read off it and fetched one page each - the site
 # is server-rendered with no feed, no API and no embedded JSON, so this is the
 # one source here parsed straight from markup.
@@ -277,8 +304,21 @@ short_name = "NASCAR"
 accent_color = "#B08A00"
 sort_order = 80
 [series.source]
+# HELD. The adapter works and is tested; the Terms of Use are the blocker.
+#
+# NASCAR Digital Media Terms of Use, read 27 August 2026 (served at
+# https://www.imsa.com/terms/ and covering the whole NDM network): "Without the
+# NASCAR Parties' prior written consent, you shall not: ... B. Use robots,
+# spiders, scripts, service, software or any manual or automatic device, tool,
+# or process designed to data mine or scrape the NDM Network Services,
+# including all images, video, data and other information contained on the NDM
+# Network Services ("NASCAR Content"), or collect such information from the NDM
+# Network Services using automated means".
+#
+# Rule 1 in docs/sources.md is to stop and flag rather than proceed on the
+# theory that the data is public. --allow-unverified still runs it deliberately.
 adapter = "nascar"
-status = "live"
+status = "unverified"
 # One request carries the whole season for all three national series. This is
 # the feed behind nascar.com's own schedule page.
 url = "https://cf.nascar.com/cacher/{season}/race_list_basic.json"

@@ -284,7 +284,9 @@ class ConfigTests(unittest.TestCase):
     def test_the_series_is_wired_to_this_adapter(self):
         series = load_series()["nascar"]
         self.assertEqual(series.source.adapter, "nascar")
-        self.assertEqual(series.source.status, "live")
+        # Held on Terms of Use, not on the adapter working - see
+        # SourceRegistryTests.test_the_series_whose_terms_forbid_scraping_stay_held.
+        self.assertEqual(series.source.status, "unverified")
         self.assertIn("{season}", series.source.url)
 
     def test_the_season_is_templated_into_the_url(self):

@@ -1,6 +1,12 @@
 # Sources
 
-## Status: F1, MotoGP, WorldSBK, WEC, IndyCar and NASCAR live; WRC and IMSA outstanding
+## Status: F1, MotoGP, WorldSBK and WEC live. Three American series are built and held
+
+IndyCar, NASCAR and IMSA all have finished, tested adapters and **none of them
+runs**. Their Terms of Use prohibit automated collection without written
+permission, which was checked after the adapters were written rather than
+before - the wrong order, and the reason this is written at the top rather than
+buried in each section. See "The three that are built and held" below.
 
 Formula 1, MotoGP, WorldSBK and WEC are `status = "live"` and running against
 confirmed sources (see the findings below). MotoGP, WorldSBK and WEC were set
@@ -96,6 +102,55 @@ prior that a good structured source exists, nothing more.
 | IMSA | JSON | Medium | Daytona 24 and Sebring 12 have the same multi-day span problem as Le Mans |
 | NASCAR | JSON | Medium | **Right on the format.** And right about the thin rounds: a Cup race can be the only session of its weekend, and the six playoff weekends have no timetable published at all |
 | WRC | Hardest | Low | 15–20 timed stages across four days. Stage-level data may not be reliably available ahead of time. Degrade to shakedown + day start/end + Power Stage and set `detail_level = 'partial'` rather than showing nothing — the schema and validation already support this |
+
+---
+
+## The three that are built and held
+
+IndyCar, NASCAR and IMSA were discovered, written, tested and - for the first
+two - run against the live database, before their Terms of Use were read. Rule 1
+below says to read them first and stop if they prohibit automated access. All
+three do.
+
+| Series | Clause | Read |
+|---|---|---|
+| IndyCar | "use an automatic device (such as a robot or spider) or manual process to copy or 'scrape' the Services (or any portion thereof) or Service Content for any purpose **without our express written permission**" — [indycar.com/terms-of-use](https://www.indycar.com/terms-of-use) | 27 Aug 2026 |
+| NASCAR | "Without the NASCAR Parties' **prior written consent**, you shall not: … B. Use robots, spiders, scripts, service, software or any manual or automatic device, tool, or process designed to data mine or scrape the NDM Network Services, including all images, video, data and other information contained on the NDM Network Services ("NASCAR Content"), or collect such information from the NDM Network Services using automated means" — NASCAR Digital Media Terms of Use, served at [imsa.com/terms](https://www.imsa.com/terms/) | 27 Aug 2026 |
+| IMSA | The same NDM Network document above. imsa.com is where it is served from | 27 Aug 2026 |
+
+**What was done about it.** All three are `status = "unverified"` in
+`config/series.toml` with the clause quoted beside them, so `--series all` skips
+them and the scheduled job cannot resume them by accident. The IndyCar and
+NASCAR data that had already been published - 17 events and 89 sessions, 42
+events and 249 sessions - was retired with `tools/retire_series.py`, which is a
+soft delete: every web query filters on `retired_at IS NULL`, so it is off the
+board, out of the calendar feed and out of the sitemap while staying in the
+database with its history. IMSA never ran against the live database at all.
+
+**What would unblock them.** Written permission, which is worth asking for -
+these are ordinary aggregation requests and organisers do grant them. With it,
+each is one config line and one command:
+
+```
+python -m scrapers.run --series indycar --season 2026 --allow-unverified
+```
+
+The event and session upserts both clear `retired_at` on anything they see
+again, so the data comes back exactly as it was.
+
+**A second, independent reason for IMSA.** imsa.com's front door answers 403 to
+this project's HTTP client while serving the identical request from Python's
+standard library. It is not about identity - the block does not depend on the
+User-Agent, and this bot's own User-Agent is served fine by the other client.
+Getting past it would mean disguising which client is asking, which is the
+opposite of rule 3, so it was not done.
+
+**The lesson, which is the reason this section exists.** Reading the Terms is
+the cheapest step in discovery and it was done last, after four days of work
+across three championships. It belongs before the first request, not after the
+first commit. The per-series findings below are kept in full: the adapters are
+good, the timezone findings were hard-won, and none of that is wasted if
+permission arrives.
 
 ---
 
@@ -476,13 +531,68 @@ IMSA, IndyCar and NASCAR are all likely candidates).
 
 ### IMSA
 
-Status: not investigated.
+**Status: built and held**, and never run against the live database.
+Investigated 27 August 2026.
+
+Two independent reasons, either of which is enough:
+
+1. **The Terms prohibit it.** imsa.com serves the NASCAR Digital Media Terms of
+   Use quoted above - it is the same document, and IMSA is part of the same
+   digital network.
+2. **The site refuses this project's client.** `imsa.com` answers 403 to every
+   request from httpx, which is what `scrapers/http.py` uses, while serving the
+   identical URL to Python's standard-library client. Tested one variable at a
+   time: it is not the User-Agent (this bot's own is served fine by the other
+   client), not the Accept header, not Connection, and not the TLS context.
+   Whatever the filter keys on, getting past it would mean disguising which
+   client is asking, and rule 3 is to be a good citizen visibly.
+
+The adapter is written and tested and the findings below are real, so this is
+ready the day there is written permission.
+
+| Field | Finding |
+|---|---|
+| Endpoint | `https://www.imsa.com/wp-json/wp/v2/schedule` lists every event as a WordPress post with a link; each event page carries its weekend timetable. Two stages, so the adapter implements `resolve_urls` |
+| Type | The API lists events but not their sessions - `content` comes back empty - so the timetable is read from page markup. The only other namespace the site exposes is `rapi/v1/allresults`, which is results and out of scope |
+| Official? | **Yes.** IMSA's own site |
+| **Timezone convention** | US Eastern for every circuit, as at IndyCar. **Verified** - see below |
+| End times | **Present on every session**, which puts this with WEC and WorldSBK rather than with the other American sources, and matters most for the endurance rounds a generic duration would badly misjudge |
+| Provisional times | Not distinguishable |
+| Support categories | WeatherTech and Michelin Pilot Challenge are both configured. Porsche Carrera Cup, Lamborghini Super Trofeo, Mazda MX-5 Cup, Mustang Challenge and VP Racing SportsCar Challenge also share the weekends and are dropped rather than filed under a class they do not belong to |
+| Coverage 2026 | 12 WeatherTech events and a Pilot Challenge round at Mid-Ohio |
+| robots.txt | Disallows only `/wp-admin/` and `/*/feed/`; neither is this |
+| Confidence | High on the data, and it does not matter until the Terms do |
+
+**The timezone was verified without needing a document**, which is the part of
+this worth keeping. IMSA and IndyCar share the Long Beach street circuit on one
+weekend, and two championships cannot be on one track at the same time.
+IndyCar's times there are already known to be Eastern, checked against an
+official schedule PDF. Reading IMSA's times as Eastern, its nine Long Beach
+sessions interleave with IndyCar's with **no overlap at all**; reading them as
+Pacific puts **three** of them on top of IndyCar sessions, including the Grand
+Prix of Long Beach running during IndyCar qualifying. One reading is a
+timetable and the other is impossible.
+
+**Naming the class needed the page to answer itself.** The schedule says it
+three ways: `"Practice 1 - WeatherTech Championship"`, `"WeatherTech
+Championship Qualifying"`, and - for a named race - not at all. The third is the
+problem, because a weekend has one named race per championship: at Watkins Glen
+"Sahlen's Six Hours of The Glen" is the WeatherTech race and the "LP Building
+Solutions 120" is the Pilot Challenge's, and the names say nothing. The
+broadcast schedule lists the same races beside their championship's logo, so
+the class is read from there and matched back by name. Only the class - never
+the times, which differ by a few minutes because coverage starts before the
+session does.
 
 ### IndyCar
 
-**Status: live.** Investigated 26 August 2026. The only source here parsed from
-plain HTML, and the only one that publishes every session in a timezone that is
-not the circuit's.
+**Status: built and held.** Investigated 26 August 2026; Terms of Use read 27
+August 2026 and they prohibit scraping without express written permission, so
+this does not run. See "The three that are built and held" above. Everything
+below stands and was verified against the live site.
+
+The only source here parsed from plain HTML, and the only one that publishes
+every session in a timezone that is not the circuit's.
 
 | Field | Finding |
 |---|---|
@@ -572,9 +682,13 @@ a worse one - the same call made for F1 Academy before its own site was found.
 
 ### NASCAR
 
-**Status: live.** Investigated 26 August 2026. The best-shaped source of any
-championship here, and the cheapest to run: one request carries the whole season
-for all three national series.
+**Status: built and held.** Investigated 26 August 2026; Terms of Use read 27
+August 2026 and they prohibit scraping without prior written consent, so this
+does not run. See "The three that are built and held" above.
+
+Which is a pity, because it is the best-shaped source of any championship here
+and the cheapest to run: one request carries the whole season for all three
+national series.
 
 | Field | Finding |
 |---|---|

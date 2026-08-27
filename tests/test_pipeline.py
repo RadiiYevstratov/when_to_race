@@ -138,6 +138,7 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertIn("wec", registered_adapters())
         self.assertIn("indycar", registered_adapters())
         self.assertIn("nascar", registered_adapters())
+        self.assertIn("imsa", registered_adapters())
 
     def test_an_unknown_adapter_names_what_is_available(self):
         with self.assertRaises(KeyError) as caught:
@@ -147,9 +148,37 @@ class SourceRegistryTests(unittest.TestCase):
     def test_unimplemented_series_are_honest_about_it(self):
         # Better to report "no adapter yet" than to ship a stub that silently
         # returns nothing and looks like an empty calendar.
-        for code in ("wrc", "imsa"):
+        for code in ("wrc",):
             with self.subTest(series=code):
                 self.assertNotIn(code, registered_adapters())
+
+    def test_the_series_whose_terms_forbid_scraping_stay_held(self):
+        """A working adapter is not permission to run it.
+
+        IndyCar, NASCAR and IMSA all prohibit automated collection without
+        written consent, in their own words:
+
+          indycar.com - "use an automatic device (such as a robot or spider) or
+          manual process to copy or 'scrape' the Services ... without our
+          express written permission"
+
+          NASCAR Digital Media, covering nascar.com and imsa.com - "Without the
+          NASCAR Parties' prior written consent, you shall not ... Use robots,
+          spiders, scripts ... to data mine or scrape the NDM Network Services"
+
+        Rule 1 in docs/sources.md is to stop and flag rather than proceed on the
+        theory that the data is public. Their adapters are written, tested and
+        registered, and none of that is the same as being allowed to run - which
+        is exactly the distinction that is easy to lose in a later tidy-up, so
+        it is pinned here. Both quotes were read on 27 August 2026; terms
+        change, and a verdict from a year ago is not a verdict.
+        """
+        registry = load_series()
+        for code in ("indycar", "nascar", "imsa"):
+            with self.subTest(series=code):
+                self.assertIn(code, registered_adapters())
+                self.assertEqual(registry[code].source.status, "unverified")
+                self.assertFalse(registry[code].source.is_verified)
 
 
 class ResolveSeriesTests(unittest.TestCase):

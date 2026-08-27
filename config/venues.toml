@@ -782,6 +782,45 @@ iana_timezone = "America/Chicago"
 latitude = 33.04
 longitude = -97.28
 
+# IMSA's road courses. The rest of its calendar is already here, shared with
+# NASCAR, IndyCar or WEC - which is the point of one venue registry.
+
+[[venue]]
+slug = "road_atlanta"
+name = "Michelin Raceway Road Atlanta"
+country_code = "US"
+city = "Braselton, GA"
+iana_timezone = "America/New_York"
+latitude = 34.15
+longitude = -83.81
+
+[[venue]]
+slug = "vir"
+name = "VIRginia International Raceway"
+country_code = "US"
+city = "Alton, VA"
+iana_timezone = "America/New_York"
+latitude = 36.56
+longitude = -79.20
+
+[[venue]]
+slug = "mosport"
+name = "Canadian Tire Motorsport Park"
+country_code = "CA"
+city = "Bowmanville, ON"
+iana_timezone = "America/Toronto"
+latitude = 44.05
+longitude = -78.67
+
+[[venue]]
+slug = "thermal_club"
+name = "The Thermal Club"
+country_code = "US"
+city = "Thermal, CA"
+iana_timezone = "America/Los_Angeles"
+latitude = 33.63
+longitude = -116.14
+
 # --- Middle East, Asia, Africa, Oceania -------------------------------------
 [[venue]]
 slug = "sakhir"
