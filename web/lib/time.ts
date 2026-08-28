@@ -283,15 +283,46 @@ const ASSUMED_MINUTES_BY_SERIES: Record<string, Record<string, number>> = {
   wsbk: { practice: 40, qualifying: 25, warmup: 10, race: 25 },
   // WEC publishes an end for every race, so only the untimed sessions matter.
   wec: { practice: 90, qualifying: 30, warmup: 15 },
+  // IndyCar publishes no end time for anything, so unlike the figures above
+  // this one is not a measured median - there is nothing to measure. It is the
+  // length of a typical race distance at these speeds, and it errs long on
+  // purpose: the Indianapolis 500 runs to about three hours.
+  indycar: { race: 120 },
+};
+
+/**
+ * Where the classes of one championship differ more than the championships do.
+ *
+ * NASCAR is the case that forced this. Its three national series share every
+ * weekend and run races an hour apart in length, so a single figure for
+ * "nascar" is wrong for two of the three however it is chosen - and the wrong
+ * direction matters, because a Cup race cut short vanishes from "running now"
+ * while it is still on, which is the question the page exists to answer.
+ *
+ * These are medians measured from NASCAR's own `total_race_time`, over the 70
+ * races of the 2026 season that have run: Cup 182 minutes, Xfinity 143, Trucks
+ * 123. The previous answer for all three was the generic 90.
+ */
+const ASSUMED_MINUTES_BY_CATEGORY: Record<string, Record<string, number>> = {
+  nascar_cup: { race: 180 },
+  nascar_xfinity: { race: 145 },
+  nascar_truck: { race: 125 },
 };
 
 export function assumedDurationMinutes(
   sessionType?: string | null,
   seriesCode?: string | null,
+  categoryCode?: string | null,
 ): number {
   if (!sessionType) return FALLBACK_MINUTES;
+  // Most specific first: the class, then the championship, then the general
+  // case. A class that says nothing falls through to its championship, which
+  // is why only the classes that differ need an entry.
+  const byCategory = categoryCode
+    ? ASSUMED_MINUTES_BY_CATEGORY[categoryCode]?.[sessionType]
+    : undefined;
   const bySeries = seriesCode ? ASSUMED_MINUTES_BY_SERIES[seriesCode]?.[sessionType] : undefined;
-  return bySeries ?? ASSUMED_MINUTES[sessionType] ?? FALLBACK_MINUTES;
+  return byCategory ?? bySeries ?? ASSUMED_MINUTES[sessionType] ?? FALLBACK_MINUTES;
 }
 
 export interface HasSpan {
@@ -300,6 +331,8 @@ export interface HasSpan {
   sessionType?: string | null;
   /** Optional: sharpens the assumption where a championship differs. */
   seriesCode?: string | null;
+  /** Optional again, and sharper still where the classes differ from each other. */
+  categoryCode?: string | null;
 }
 
 /**
@@ -317,7 +350,11 @@ export function sessionEnd(session: HasSpan): Date {
     // strips these, but a row written before that rule existed can still exist.
     if (end.getTime() > start.getTime()) return end;
   }
-  const minutes = assumedDurationMinutes(session.sessionType, session.seriesCode);
+  const minutes = assumedDurationMinutes(
+    session.sessionType,
+    session.seriesCode,
+    session.categoryCode,
+  );
   return new Date(start.getTime() + minutes * 60_000);
 }
 

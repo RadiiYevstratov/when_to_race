@@ -332,9 +332,38 @@ describe("when a session ends", () => {
     assert.equal(assumedDurationMinutes("race", "wsbk"), 25);
     assert.equal(assumedDurationMinutes("race", "motogp"), 50);
     assert.equal(assumedDurationMinutes("race", "f1"), 70);
+    assert.equal(assumedDurationMinutes("race", "indycar"), 120);
     // A series with no entry falls back to the general figure.
-    assert.equal(assumedDurationMinutes("race", "indycar"), 90);
+    assert.equal(assumedDurationMinutes("race", "wrc"), 90);
     assert.equal(assumedDurationMinutes("shakedown", "motogp"), 60);
+  });
+
+  test("and on the class, where the classes differ more than the championships", () => {
+    // NASCAR's three national series share every weekend and run races an hour
+    // apart in length. Medians from the feed's own total_race_time: Cup 182
+    // minutes, Xfinity 143, Trucks 123 - against a generic 90 for all three.
+    assert.equal(assumedDurationMinutes("race", "nascar", "nascar_cup"), 180);
+    assert.equal(assumedDurationMinutes("race", "nascar", "nascar_xfinity"), 145);
+    assert.equal(assumedDurationMinutes("race", "nascar", "nascar_truck"), 125);
+    // A class with no entry of its own falls through to its championship, and
+    // a championship with none falls through to the general figure.
+    assert.equal(assumedDurationMinutes("practice", "nascar", "nascar_cup"), 60);
+    assert.equal(assumedDurationMinutes("race", "f1", "f2"), 70);
+  });
+
+  test("a Cup race is still live two hours in", () => {
+    // The bug this fixes: at the generic 90 minutes a Cup race left "running
+    // now" about an hour and a half before it ended, which is the one question
+    // the board exists to answer.
+    const race = {
+      startsAtUtc: "2026-02-15T18:30:00Z",
+      sessionType: "race",
+      seriesCode: "nascar",
+      categoryCode: "nascar_cup",
+    };
+    assert.equal(isLive(race, new Date("2026-02-15T20:30:00Z")), true);
+    assert.equal(isLive(race, new Date("2026-02-15T21:25:00Z")), true);
+    assert.equal(isLive(race, new Date("2026-02-15T21:35:00Z")), false);
   });
 
   test("a WorldSBK race is not still live an hour after it finished", () => {
