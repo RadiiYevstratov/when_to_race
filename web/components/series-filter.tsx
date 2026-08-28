@@ -16,6 +16,7 @@
 import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { accentBackground } from "../lib/accent.ts";
 import { COOKIE_MAX_AGE, SERIES_COOKIE } from "../lib/preference-keys.ts";
 import {
   formatSelection,
@@ -36,6 +37,8 @@ export interface CategoryOption {
   shortName: string;
   /** The class's own colour, already resolved against its series. */
   accentColor: string;
+  /** Bands where that identity is more than one colour; null otherwise. */
+  accentColors: string | null;
   /** Zero means seeded but never run - a discontinued class, or one not yet started. */
   sessionCount: number;
 }
@@ -199,7 +202,9 @@ export function SeriesFilter({
                   <span
                     aria-hidden="true"
                     className={`inline-block h-2 w-2 shrink-0 ${on ? "" : "opacity-60"}`}
-                    style={{ backgroundColor: category.accentColor }}
+                    style={{
+                      background: accentBackground(category.accentColor, category.accentColors),
+                    }}
                   />
                   {category.shortName}
                 </button>

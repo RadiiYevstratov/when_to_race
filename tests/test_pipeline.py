@@ -59,12 +59,37 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(categories["f2"].accent_color, "#0096D6")
         self.assertEqual(categories["f3"].accent_color, "#E35205")
 
-    def test_a_headline_class_inherits_rather_than_repeats(self):
-        # Formula 1 within Formula 1 has no separate identity to state, and
-        # copying the value would mean changing a series colour in two places.
+    def test_a_headline_class_never_repeats_its_series_colour(self):
+        """Inherit, or say something different. Never say the same thing twice.
+
+        Formula 1 within Formula 1 has no separate identity to state, so it
+        leaves the colour null and wears its series'. The NASCAR Cup Series does
+        have one - yellow, red and blue, against the championship's gold - so it
+        states it.
+
+        What neither may do is copy the series value, which would be one colour
+        with two places to change it.
+        """
         for code, series in load_series().items():
             with self.subTest(series=code):
-                self.assertIsNone(series.headline_category.accent_color)
+                headline = series.headline_category.accent_color
+                if headline is not None:
+                    self.assertNotEqual(headline.lower(), series.accent_color.lower())
+
+    def test_a_multi_colour_class_leads_with_its_single_colour(self):
+        """Anything wanting one colour takes the first band and is not choosing.
+
+        The config rejects the two disagreeing, so this is really checking that
+        the rule is still wired up rather than that today's values happen to
+        match.
+        """
+        for code, series in load_series().items():
+            for category in series.categories:
+                if not category.accent_colors:
+                    continue
+                with self.subTest(series=code, category=category.code):
+                    self.assertGreaterEqual(len(category.accent_colors), 2)
+                    self.assertEqual(category.accent_color, category.accent_colors[0])
 
     def test_every_declared_class_colour_is_a_hex_triplet(self):
         for code, series in load_series().items():

@@ -327,16 +327,27 @@ name = "NASCAR Cup Series"
 short_name = "Cup"
 is_headline = true
 sort_order = 10
+# The Cup Series identity is three colours together, so the mark is banded
+# rather than picking one third of it. The first is also `accent_color`, which
+# is what anywhere wanting a single colour uses.
+accent_color = "#FCD43D"
+accent_colors = ["#FCD43D", "#EE293D", "#1478C7"]
 [[series.categories]]
 code = "nascar_xfinity"
 name = "NASCAR Xfinity Series"
 short_name = "Xfinity"
 sort_order = 20
+# Measures ΔE2000 1.8 from WEC's green, which is below the threshold where the
+# eye separates two colours at all. Kept because it is the series' own, and
+# because the two never share a row: the class name is written beside the mark.
+accent_color = "#009D57"
 [[series.categories]]
 code = "nascar_truck"
 name = "NASCAR Craftsman Truck Series"
 short_name = "Trucks"
 sort_order = 30
+# Likewise 2.5 from Formula 1's red, and 5.7 from the Cup band above it.
+accent_color = "#DE1E26"
 
 # ---------------------------------------------------------------------------
 # Validation floors. A healthy event for this series has at least this many

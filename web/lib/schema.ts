@@ -74,6 +74,12 @@ export const categories = pgTable(
     isHeadline: boolean("is_headline").notNull().default(false),
     /** Null inherits the parent series colour. */
     accentColor: text("accent_color"),
+    /**
+     * Comma-separated bands for a class whose identity is more than one colour,
+     * the NASCAR Cup Series being the reason this exists. Null is the usual
+     * case and means the mark is the single accentColor above.
+     */
+    accentColors: text("accent_colors"),
     sortOrder: integer("sort_order").notNull().default(100),
   },
   (table) => ({

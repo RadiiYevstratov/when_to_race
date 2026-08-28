@@ -80,14 +80,16 @@ def seed(database_url: str, dry_run: bool = False) -> dict[str, int]:
                     cursor.execute(
                         """
                         INSERT INTO categories
-                            (series_id, code, name, short_name, is_headline, sort_order, accent_color)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            (series_id, code, name, short_name, is_headline, sort_order,
+                             accent_color, accent_colors)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (series_id, code) DO UPDATE
                            SET name = EXCLUDED.name,
                                short_name = EXCLUDED.short_name,
                                is_headline = EXCLUDED.is_headline,
                                sort_order = EXCLUDED.sort_order,
                                accent_color = EXCLUDED.accent_color,
+                               accent_colors = EXCLUDED.accent_colors,
                                updated_at = now()
                         """,
                         (
@@ -98,6 +100,9 @@ def seed(database_url: str, dry_run: bool = False) -> dict[str, int]:
                             category.is_headline,
                             category.sort_order,
                             category.accent_color,
+                            # NULL rather than an empty string: the check
+                            # constraint wants a list or nothing.
+                            ",".join(category.accent_colors) or None,
                         ),
                     )
                     counts["categories"] += 1

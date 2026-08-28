@@ -32,6 +32,12 @@ class CategoryConfig:
     # None inherits the parent series colour, which is what a headline class
     # wants: Formula 1 within Formula 1 has no separate identity to state.
     accent_color: Optional[str] = None
+    # Where a class's identity is more than one colour - the NASCAR Cup Series
+    # is yellow, red and blue together, and any one of them is a third of a
+    # logo. Empty is the usual case and means the mark is `accent_color`.
+    # When set, the first band is `accent_color`, so nothing that wants a
+    # single colour has to know this exists.
+    accent_colors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -95,16 +101,47 @@ def _load_toml(path: Path) -> dict:
         return tomllib.load(handle)
 
 
+def _check_hex(series_code: str, cat: dict, field: str, color) -> str:
+    if not (isinstance(color, str) and color.startswith("#") and len(color) == HEX_COLOR_LENGTH):
+        raise ConfigError(
+            f"series {series_code!r} category {cat['code']!r}: "
+            f"{field} must be #rrggbb, got {color!r}"
+        )
+    return color
+
+
 def _category_color(series_code: str, cat: dict) -> Optional[str]:
     color = cat.get("accent_color")
     if color is None:
         return None
-    if not (color.startswith("#") and len(color) == HEX_COLOR_LENGTH):
+    return _check_hex(series_code, cat, "accent_color", color)
+
+
+def _category_colors(series_code: str, cat: dict) -> tuple[str, ...]:
+    """The bands of a multi-colour identity mark, or nothing.
+
+    One band is rejected rather than accepted quietly: it would duplicate
+    `accent_color` and leave two places to change the same colour.
+    """
+    colors = cat.get("accent_colors")
+    if colors is None:
+        return ()
+    if not isinstance(colors, list) or len(colors) < 2:
         raise ConfigError(
             f"series {series_code!r} category {cat['code']!r}: "
-            f"accent_color must be #rrggbb, got {color!r}"
+            f"accent_colors must be a list of two or more #rrggbb, got {colors!r}"
         )
-    return color
+    bands = tuple(_check_hex(series_code, cat, "accent_colors", c) for c in colors)
+
+    # The first band is the single colour, so a caller that wants one is never
+    # choosing between them.
+    single = cat.get("accent_color")
+    if single is not None and single.lower() != bands[0].lower():
+        raise ConfigError(
+            f"series {series_code!r} category {cat['code']!r}: "
+            f"accent_color {single!r} must be the first of accent_colors {bands[0]!r}"
+        )
+    return bands
 
 
 @lru_cache(maxsize=1)
@@ -130,6 +167,7 @@ def load_series(config_dir: Optional[str] = None) -> dict[str, SeriesConfig]:
                 is_headline=cat.get("is_headline", False),
                 sort_order=cat.get("sort_order", 100),
                 accent_color=_category_color(code, cat),
+                accent_colors=_category_colors(code, cat),
             )
             for cat in entry.get("categories", [])
         )

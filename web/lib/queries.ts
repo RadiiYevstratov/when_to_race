@@ -100,6 +100,8 @@ export interface SessionRow {
   categorySortOrder: number;
   /** The class's own colour, falling back to the championship's. */
   categoryAccentColor: string;
+  /** Comma-separated bands where the class has more than one colour. */
+  categoryAccentColors: string | null;
   seriesCode: string;
   seriesName: string;
   seriesShortName: string;
@@ -139,6 +141,8 @@ const sessionSelection = {
   // A class with no colour of its own wears the championship's. Resolved here
   // rather than in the component so every surface inherits identically.
   categoryAccentColor: sql<string>`coalesce(${categories.accentColor}, ${series.accentColor})`,
+  /** Bands for a class whose identity is more than one colour; null otherwise. */
+  categoryAccentColors: categories.accentColors,
   seriesCode: series.code,
   seriesName: series.name,
   seriesShortName: series.shortName,
@@ -692,6 +696,7 @@ export async function getSeriesCatalogue() {
       categoryShortName: categories.shortName,
       categorySortOrder: categories.sortOrder,
       categoryAccentColor: sql<string>`coalesce(${categories.accentColor}, ${series.accentColor})`,
+      categoryAccentColors: categories.accentColors,
       sessionCount: sql<number>`count(${sessions.id})`.mapWith(Number),
     })
     .from(series)
@@ -711,6 +716,7 @@ export async function getSeriesCatalogue() {
       categories.shortName,
       categories.sortOrder,
       categories.accentColor,
+      categories.accentColors,
     )
     .orderBy(asc(series.sortOrder), asc(categories.sortOrder));
 
@@ -725,6 +731,7 @@ export async function getSeriesCatalogue() {
         code: string;
         shortName: string;
         accentColor: string;
+        accentColors: string | null;
         sessionCount: number;
       }[];
     }
@@ -746,6 +753,7 @@ export async function getSeriesCatalogue() {
       code: row.categoryCode,
       shortName: row.categoryShortName,
       accentColor: row.categoryAccentColor,
+      accentColors: row.categoryAccentColors,
       sessionCount: row.sessionCount,
     });
   }

@@ -13,6 +13,7 @@
 
 import Link from "next/link";
 
+import { accentBackground } from "../lib/accent.ts";
 import type { SessionRow } from "../lib/queries.ts";
 import { dayShift, formatTime, groupByDay, isLive, isStale } from "../lib/time.ts";
 
@@ -103,7 +104,12 @@ export function BoardRow({
       <span
         aria-hidden="true"
         className="mt-1 h-3.5 w-[3px] shrink-0"
-        style={{ backgroundColor: session.categoryAccentColor }}
+        style={{
+          background: accentBackground(
+            session.categoryAccentColor,
+            session.categoryAccentColors,
+          ),
+        }}
       />
 
       <span className="w-20 shrink-0 font-mono text-xs text-ink-muted">
