@@ -1,21 +1,27 @@
 # Sources
 
-## Status: F1, MotoGP, WorldSBK and WEC live. Three American series are built and held
+## Status: F1, MotoGP, WorldSBK, WEC, IndyCar and NASCAR live. IMSA is built and blocked
 
-IndyCar, NASCAR and IMSA all have finished, tested adapters and **none of them
-runs**. Their Terms of Use prohibit automated collection without written
-permission, which was checked after the adapters were written rather than
-before - the wrong order, and the reason this is written at the top rather than
-buried in each section. See "The three that are built and held" below.
+IndyCar and NASCAR run under a **recorded decision by the site owner**, not
+under permission from the organisers: their Terms of Use prohibit automated
+collection without written consent, and the site owner chose on 28 August 2026
+to proceed anyway, taking session times, session names and venues only. The
+clauses are quoted in `config/series.toml` beside each entry and in "The
+American series and their terms" below, so the position is stated rather than
+assumed by whoever reads this next.
+
+IMSA has a finished adapter that has never run: imsa.com refuses this project's
+HTTP client outright, and the only way past that is to change which client
+appears to be asking.
 
 Formula 1, MotoGP, WorldSBK and WEC are `status = "live"` and running against
 confirmed sources (see the findings below). MotoGP, WorldSBK and WEC were set
 live on 2026-08-23 after the owner accepted the Terms-of-Use risk documented in
 the MotoGP findings (all three restrict use to personal purposes; WorldSBK is the
 same publisher as MotoGP, WEC is a separate organiser with equivalent terms).
-Every other series (WRC, IMSA, IndyCar, NASCAR) is still `status = "unverified"`,
-and `python -m scrapers.run` refuses to run an unverified source unless you pass
-`--allow-unverified`.
+WRC and IMSA are still `status = "unverified"`, and `python -m scrapers.run`
+refuses to run an unverified source unless you pass `--allow-unverified`. WRC
+has no adapter yet; IMSA has one that cannot fetch.
 
 That refusal is deliberate. The worst outcome for this product is showing a
 confident wrong time, and a parser pointed at a guessed endpoint is exactly how
@@ -105,12 +111,12 @@ prior that a good structured source exists, nothing more.
 
 ---
 
-## The three that are built and held
+## The American series and their terms
 
 IndyCar, NASCAR and IMSA were discovered, written, tested and - for the first
-two - run against the live database, before their Terms of Use were read. Rule 1
+two - run against the live database before their Terms of Use were read. Rule 1
 below says to read them first and stop if they prohibit automated access. All
-three do.
+three do prohibit it.
 
 | Series | Clause | Read |
 |---|---|---|
@@ -118,39 +124,55 @@ three do.
 | NASCAR | "Without the NASCAR Parties' **prior written consent**, you shall not: … B. Use robots, spiders, scripts, service, software or any manual or automatic device, tool, or process designed to data mine or scrape the NDM Network Services, including all images, video, data and other information contained on the NDM Network Services ("NASCAR Content"), or collect such information from the NDM Network Services using automated means" — NASCAR Digital Media Terms of Use, served at [imsa.com/terms](https://www.imsa.com/terms/) | 27 Aug 2026 |
 | IMSA | The same NDM Network document above. imsa.com is where it is served from | 27 Aug 2026 |
 
-**What was done about it.** All three are `status = "unverified"` in
-`config/series.toml` with the clause quoted beside them, so `--series all` skips
-them and the scheduled job cannot resume them by accident. The IndyCar and
-NASCAR data that had already been published - 17 events and 89 sessions, 42
-events and 249 sessions - was retired with `tools/retire_series.py`, which is a
-soft delete: every web query filters on `retired_at IS NULL`, so it is off the
-board, out of the calendar feed and out of the sitemap while staying in the
-database with its history. IMSA never ran against the live database at all.
+**The decision, recorded.** On 28 August 2026 the site owner read the above and
+chose to run IndyCar and NASCAR anyway, on the basis that what this product
+takes is **session times, session names and venues** - no drivers, no teams, no
+results, no images, no editorial text. Both are `status = "live"` with the
+clause quoted beside them in config.
 
-**What would unblock them.** Written permission, which is worth asking for -
-these are ordinary aggregation requests and organisers do grant them. With it,
-each is one config line and one command:
+That reasoning is worth stating precisely, because the scope limit is a real
+mitigation but it is **not an exemption from these particular clauses**:
+
+- IndyCar's covers the Services "**or any portion thereof**" and "**for any
+  purpose**", so a narrow extraction is inside it by construction.
+- NASCAR's covers "**data and other information**", which is what a session
+  time is.
+
+What the narrow scope does buy is everything the clauses are actually there to
+protect: no copyrightable expression is copied, nothing competes with their
+media products, and rule 2 below - take only what the product needs - is
+honoured rather than merely claimed. Schedule facts are not copyrightable in
+the US, so what remains is a contract term rather than a property right, and
+the realistic consequence of getting it wrong is a takedown request or an IP
+block rather than a court.
+
+**If either organiser objects**, the sequence is: set `status = "unverified"`
+in `config/series.toml`, then
 
 ```
-python -m scrapers.run --series indycar --season 2026 --allow-unverified
+python -m tools.retire_series --series indycar,nascar --season 2026
 ```
 
-The event and session upserts both clear `retired_at` on anything they see
-again, so the data comes back exactly as it was.
+which is a soft delete - every web query filters on `retired_at IS NULL`, so
+the series leaves the board, the calendar feed and the sitemap while staying in
+the database with its history. Both were already retired and restored once by
+this route on 27-28 August, so it is a tested path rather than a plan. Asking
+for written permission remains worth doing; these are ordinary aggregation
+requests and organisers do grant them.
 
-**A second, independent reason for IMSA.** imsa.com's front door answers 403 to
-this project's HTTP client while serving the identical request from Python's
-standard library. It is not about identity - the block does not depend on the
-User-Agent, and this bot's own User-Agent is served fine by the other client.
-Getting past it would mean disguising which client is asking, which is the
-opposite of rule 3, so it was not done.
+**IMSA is a different question and is still off.** imsa.com's front door
+answers 403 to this project's HTTP client while serving the identical request
+from Python's standard library. It is not about identity - the block does not
+depend on the User-Agent, and this bot's own is served fine by the other
+client - but the only way past it is to change which client appears to be
+asking, and that is disguising who is knocking rather than disagreeing with a
+contract term. Rule 3 is to be a good citizen visibly, so this one waits.
 
-**The lesson, which is the reason this section exists.** Reading the Terms is
-the cheapest step in discovery and it was done last, after four days of work
-across three championships. It belongs before the first request, not after the
-first commit. The per-series findings below are kept in full: the adapters are
-good, the timezone findings were hard-won, and none of that is wasted if
-permission arrives.
+**One process note, which is the reason this section exists at all.** Reading
+the Terms is the cheapest step in discovery and it was done last, after three
+championships were built and two were live. It belongs before the first
+request. Doing it in that order is what turns this into a decision someone can
+make deliberately, rather than one they find out about later.
 
 ---
 
@@ -531,15 +553,14 @@ IMSA, IndyCar and NASCAR are all likely candidates).
 
 ### IMSA
 
-**Status: built and held**, and never run against the live database.
+**Status: built and blocked**, and never run against the live database.
 Investigated 27 August 2026.
 
-Two independent reasons, either of which is enough:
+The Terms are the same NASCAR Digital Media document quoted above, and the site
+owner's decision of 28 August 2026 covers this series too - but IMSA is off for
+a second reason that the decision does not reach:
 
-1. **The Terms prohibit it.** imsa.com serves the NASCAR Digital Media Terms of
-   Use quoted above - it is the same document, and IMSA is part of the same
-   digital network.
-2. **The site refuses this project's client.** `imsa.com` answers 403 to every
+**The site refuses this project's client.** `imsa.com` answers 403 to every
    request from httpx, which is what `scrapers/http.py` uses, while serving the
    identical URL to Python's standard-library client. Tested one variable at a
    time: it is not the User-Agent (this bot's own is served fine by the other
@@ -586,10 +607,10 @@ session does.
 
 ### IndyCar
 
-**Status: built and held.** Investigated 26 August 2026; Terms of Use read 27
-August 2026 and they prohibit scraping without express written permission, so
-this does not run. See "The three that are built and held" above. Everything
-below stands and was verified against the live site.
+**Status: live.** Investigated 26 August 2026. Terms of Use read 27 August 2026
+and they prohibit scraping without express written permission; running anyway is
+the site owner's recorded decision of 28 August 2026, taking times and venues
+only - see "The American series and their terms" above.
 
 The only source here parsed from plain HTML, and the only one that publishes
 every session in a timezone that is not the circuit's.
@@ -682,13 +703,13 @@ a worse one - the same call made for F1 Academy before its own site was found.
 
 ### NASCAR
 
-**Status: built and held.** Investigated 26 August 2026; Terms of Use read 27
-August 2026 and they prohibit scraping without prior written consent, so this
-does not run. See "The three that are built and held" above.
+**Status: live.** Investigated 26 August 2026. Terms of Use read 27 August 2026
+and they prohibit scraping without prior written consent; running anyway is the
+site owner's recorded decision of 28 August 2026, taking times and venues only -
+see "The American series and their terms" above.
 
-Which is a pity, because it is the best-shaped source of any championship here
-and the cheapest to run: one request carries the whole season for all three
-national series.
+It is the best-shaped source of any championship here and the cheapest to run:
+one request carries the whole season for all three national series.
 
 | Field | Finding |
 |---|---|

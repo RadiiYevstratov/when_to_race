@@ -264,19 +264,17 @@ short_name = "IndyCar"
 accent_color = "#0C7C8C"
 sort_order = 70
 [series.source]
-# HELD. The adapter works and is tested; the Terms of Use are the blocker.
+# Terms of Use, read 27 August 2026: "use an automatic device (such as a robot
+# or spider) or manual process to copy or 'scrape' the Services (or any portion
+# thereof) or Service Content for any purpose without our express written
+# permission" is listed among the prohibited uses.
 #
-# indycar.com Terms of Use, read 27 August 2026: "use an automatic device (such
-# as a robot or spider) or manual process to copy or 'scrape' the Services (or
-# any portion thereof) or Service Content for any purpose without our express
-# written permission" is listed among the prohibited uses.
-#
-# Rule 1 in docs/sources.md is to stop and flag rather than proceed on the
-# theory that the data is public, so this stays unverified until IndyCar gives
-# written permission or another route is found. --allow-unverified still runs
-# it deliberately.
+# Live by the site owner's decision of 28 August 2026, taking session times,
+# session names and venues only. Note what the clause does and does not turn
+# on: "any portion thereof" and "for any purpose" mean the narrow scope is not
+# an exemption from it. See docs/sources.md#the-american-series-and-their-terms.
 adapter = "indycar"
-status = "unverified"
+status = "live"
 # The season index. Rounds are read off it and fetched one page each - the site
 # is server-rendered with no feed, no API and no embedded JSON, so this is the
 # one source here parsed straight from markup.
@@ -304,8 +302,6 @@ short_name = "NASCAR"
 accent_color = "#B08A00"
 sort_order = 80
 [series.source]
-# HELD. The adapter works and is tested; the Terms of Use are the blocker.
-#
 # NASCAR Digital Media Terms of Use, read 27 August 2026 (served at
 # https://www.imsa.com/terms/ and covering the whole NDM network): "Without the
 # NASCAR Parties' prior written consent, you shall not: ... B. Use robots,
@@ -315,10 +311,12 @@ sort_order = 80
 # Network Services ("NASCAR Content"), or collect such information from the NDM
 # Network Services using automated means".
 #
-# Rule 1 in docs/sources.md is to stop and flag rather than proceed on the
-# theory that the data is public. --allow-unverified still runs it deliberately.
+# Live by the site owner's decision of 28 August 2026, taking session times,
+# session names and venues only - no drivers, no teams, no results. "Data and
+# other information" is what the clause covers, so the narrow scope is not an
+# exemption from it. See docs/sources.md#the-american-series-and-their-terms.
 adapter = "nascar"
-status = "unverified"
+status = "live"
 # One request carries the whole season for all three national series. This is
 # the feed behind nascar.com's own schedule page.
 url = "https://cf.nascar.com/cacher/{season}/race_list_basic.json"

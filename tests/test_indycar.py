@@ -309,9 +309,9 @@ class ConfigTests(unittest.TestCase):
     def test_the_series_is_wired_to_this_adapter(self):
         series = load_series()["indycar"]
         self.assertEqual(series.source.adapter, "indycar")
-        # Held on Terms of Use, not on the adapter working - see
-        # SourceRegistryTests.test_the_series_whose_terms_forbid_scraping_stay_held.
-        self.assertEqual(series.source.status, "unverified")
+        # Live by the site owner's decision, taking times and venues only. The
+        # Terms clause is quoted beside this entry in config/series.toml.
+        self.assertEqual(series.source.status, "live")
         self.assertTrue(series.source.url.startswith("https://www.indycar.com/"))
 
     def test_every_round_maps_to_a_venue_that_exists(self):
