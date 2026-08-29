@@ -101,6 +101,21 @@ export function formatDayHeading(key: DayKey, timeZone: string): string {
   }).format(date);
 }
 
+/**
+ * The day key N days after this one.
+ *
+ * Calendar arithmetic on the key rather than on an instant, which is the whole
+ * point: "tomorrow" is the next date on the viewer's calendar, and on the two
+ * nights a year a clock jumps it is still exactly one date later even though
+ * it is not 24 hours later. Anchored at noon so the shift cannot land on the
+ * hour that does not exist.
+ */
+export function shiftDayKey(key: DayKey, days: number): DayKey {
+  const date = new Date(`${key}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 export function formatShortDay(key: DayKey): string {
   const date = new Date(`${key}T12:00:00Z`);
   return new Intl.DateTimeFormat("en-GB", {

@@ -9,7 +9,15 @@
 
 import Link from "next/link";
 
-import { BoardRow, DayBoard, EmptyBoard, sessionTypeLabel } from "../components/board.tsx";
+import { accentBackground } from "../lib/accent.ts";
+
+import {
+  DayBoard,
+  EmptyBoard,
+  QuietEmpty,
+  SessionList,
+  sessionTypeLabel,
+} from "../components/board.tsx";
 import { Countdown } from "../components/countdown.tsx";
 import { CircuitArt } from "../components/circuit-art.tsx";
 import { readPreferences } from "../lib/preferences.ts";
@@ -20,7 +28,14 @@ import {
   hasSessionsAfter,
 } from "../lib/queries.ts";
 import { circuitPath } from "../lib/structured-data.ts";
-import { countdown, formatCountdown, formatTime } from "../lib/time.ts";
+import {
+  countdown,
+  dayKey,
+  formatCountdown,
+  formatDayHeading,
+  formatTime,
+  shiftDayKey,
+} from "../lib/time.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +70,22 @@ export default async function HomePage({
     (session) => !live.some((running) => running.id === session.id),
   );
 
+  // Today and tomorrow are the two questions people actually arrive with, so
+  // they get their own headings rather than being the first two day groups of
+  // a seven-day list. Both are the viewer's days, not the circuit's: a race at
+  // 01:30 Sunday in Bratislava is Saturday night in Daytona, and the person
+  // reading is in Bratislava.
+  const todayKey = dayKey(now, timeZone);
+  const tomorrowKey = shiftDayKey(todayKey, 1);
+  const dayOf = (session: (typeof windowWithoutLive)[number]) =>
+    dayKey(session.startsAtUtc, timeZone);
+
+  const today = windowWithoutLive.filter((session) => dayOf(session) === todayKey);
+  const tomorrow = windowWithoutLive.filter((session) => dayOf(session) === tomorrowKey);
+  const later = windowWithoutLive.filter(
+    (session) => dayOf(session) !== todayKey && dayOf(session) !== tomorrowKey,
+  );
+
   return (
     <div className="space-y-10">
       {/* The page's visible identity is the wordmark in the header, and a
@@ -70,11 +101,7 @@ export default async function HomePage({
           <h2 id="live-heading" className="eyebrow border-b border-ink pb-1.5 text-live">
             Running now
           </h2>
-          <ul className="mt-1">
-            {live.map((session) => (
-              <BoardRow key={session.id} session={session} timeZone={timeZone} now={now} showEvent />
-            ))}
-          </ul>
+          <SessionList sessions={live} timeZone={timeZone} now={now} showEvent />
         </section>
       ) : null}
 
@@ -89,7 +116,12 @@ export default async function HomePage({
               <span
                 aria-hidden="true"
                 className="h-5 w-[3px]"
-                style={{ backgroundColor: next.categoryAccentColor }}
+                style={{
+                  background: accentBackground(
+                    next.categoryAccentColor,
+                    next.categoryAccentColors,
+                  ),
+                }}
               />
               <span className="font-mono text-xs text-ink-muted">{next.categoryShortName}</span>
               <span className="font-mono text-xs text-ink-faint">
@@ -140,16 +172,46 @@ export default async function HomePage({
         </section>
       ) : null}
 
+      <section aria-labelledby="today-heading">
+        <h2 id="today-heading" className="eyebrow border-b border-ink pb-1.5">
+          Today
+          <span className="ml-2 text-ink-faint">{formatDayHeading(todayKey, timeZone)}</span>
+        </h2>
+        {today.length > 0 ? (
+          <SessionList sessions={today} timeZone={timeZone} now={now} showEvent />
+        ) : (
+          // "More" because anything running right now is above, and because a
+          // session that finished an hour ago has already dropped off this list.
+          <QuietEmpty message="Nothing more today." />
+        )}
+      </section>
+
+      <section aria-labelledby="tomorrow-heading">
+        <h2 id="tomorrow-heading" className="eyebrow border-b border-ink pb-1.5">
+          Tomorrow
+          <span className="ml-2 text-ink-faint">{formatDayHeading(tomorrowKey, timeZone)}</span>
+        </h2>
+        {tomorrow.length > 0 ? (
+          <SessionList sessions={tomorrow} timeZone={timeZone} now={now} showEvent />
+        ) : (
+          <QuietEmpty message="Nothing tomorrow." />
+        )}
+      </section>
+
       <section aria-labelledby="soon-heading">
         <h2 id="soon-heading" className="eyebrow">
           The next {days} days
         </h2>
         <div className="mt-3">
-          {windowWithoutLive.length > 0 ? (
-            <DayBoard sessions={windowWithoutLive} timeZone={timeZone} now={now} showEvent />
+          {later.length > 0 ? (
+            <DayBoard sessions={later} timeZone={timeZone} now={now} showEvent />
           ) : (
             <EmptyBoard
-              message={`Nothing scheduled in the next ${days} days.`}
+              message={
+                windowWithoutLive.length > 0
+                  ? `Nothing further in the next ${days} days.`
+                  : `Nothing scheduled in the next ${days} days.`
+              }
               hint="Check the season calendar for the next round."
             />
           )}

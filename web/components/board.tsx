@@ -143,6 +143,44 @@ export function BoardRow({
   );
 }
 
+/**
+ * Rows under a heading that already names the day.
+ *
+ * "Running now", "Today" and "Tomorrow" each say what day they are, so
+ * repeating the date inside them would be saying it twice. DayBoard is for the
+ * stretch further out, where the reader does need telling.
+ */
+export function SessionList({
+  sessions,
+  timeZone,
+  now,
+  showEvent = false,
+}: {
+  sessions: SessionRow[];
+  timeZone: string;
+  now: Date;
+  showEvent?: boolean;
+}) {
+  return (
+    <ul className="mt-1">
+      {sessions.map((session) => (
+        <BoardRow
+          key={session.id}
+          session={session}
+          timeZone={timeZone}
+          now={now}
+          showEvent={showEvent}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/** A one-line "nothing here", for a section small enough that a box would shout. */
+export function QuietEmpty({ message }: { message: string }) {
+  return <p className="mt-2 border-t border-rule pt-3 text-sm text-ink-faint">{message}</p>;
+}
+
 export function DayBoard({
   sessions,
   timeZone,

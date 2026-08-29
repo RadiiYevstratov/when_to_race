@@ -24,6 +24,7 @@ import {
   resolveTimeZone,
   sessionEnd,
   assumedDurationMinutes,
+  shiftDayKey,
 } from "../lib/time.ts";
 
 import { buildCalendar, escapeText, foldLine, parseSelection } from "../lib/ics.ts";
@@ -45,6 +46,23 @@ describe("day grouping", () => {
   test("a late-night race is the next day in Europe", () => {
     assert.equal(dayKey(VEGAS_RACE, "America/Los_Angeles"), "2026-11-21");
     assert.equal(dayKey(VEGAS_RACE, "Europe/Bratislava"), "2026-11-22");
+  });
+
+  test("tomorrow is the next date, including the nights a clock jumps", () => {
+    // What the home page's Today and Tomorrow headings are built on.
+    assert.equal(shiftDayKey("2026-08-28", 1), "2026-08-29");
+    assert.equal(shiftDayKey("2026-08-28", -1), "2026-08-27");
+
+    // Month, year and leap-year boundaries.
+    assert.equal(shiftDayKey("2026-08-31", 1), "2026-09-01");
+    assert.equal(shiftDayKey("2026-12-31", 1), "2027-01-01");
+    assert.equal(shiftDayKey("2028-02-28", 1), "2028-02-29");
+
+    // The reason this is calendar arithmetic and not "add 86,400,000ms": on
+    // these two dates the local day is 23 and 25 hours long, and tomorrow is
+    // still simply the next date.
+    assert.equal(shiftDayKey("2026-03-29", 1), "2026-03-30"); // Europe springs forward
+    assert.equal(shiftDayKey("2026-10-25", 1), "2026-10-26"); // and falls back
   });
 
   test("dayShift reports the offset the UI marks with +1 / -1", () => {
