@@ -12,6 +12,8 @@
  * have their URLs recorded and neither is listed, which is the rule working.
  */
 
+import Link from "next/link";
+
 import type { SeriesCatalogue } from "../lib/queries.ts";
 import { CONTACT_EMAIL, officialSites } from "../lib/official-sites.ts";
 
@@ -48,7 +50,11 @@ export function Footer({ allSeries }: { allSeries: SeriesCatalogue }) {
         <p className="mt-2">
           If there is something you would like to see here &mdash; a championship that is
           missing, a feature that would make the board more useful, or simply a time that
-          looks wrong &mdash; write to{" "}
+          looks wrong &mdash; use the{" "}
+          <Link href="/contact" className="border-b border-ink-faint hover:text-ink">
+            contact form
+          </Link>
+          , or write to{" "}
           <a href={`mailto:${CONTACT_EMAIL}`} className="border-b border-ink-faint hover:text-ink">
             {CONTACT_EMAIL}
           </a>

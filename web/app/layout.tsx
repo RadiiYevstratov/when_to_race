@@ -108,7 +108,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Link href="/" className="font-mono text-base font-semibold tracking-tight">
               ON TRACK
             </Link>
-            <nav className="flex gap-4 text-sm text-ink-muted" aria-label="Main">
+            {/* Wraps because it has to: six items at this size overflow a
+                375px phone, and the board must never scroll sideways. */}
+            <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted" aria-label="Main">
               <Link href="/" className="hover:text-ink">
                 Now
               </Link>
@@ -123,6 +125,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </Link>
               <Link href="/subscribe" className="hover:text-ink">
                 Subscribe
+              </Link>
+              <Link href="/contact" className="hover:text-ink">
+                Contact
               </Link>
             </nav>
             <div className="ml-auto">

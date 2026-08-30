@@ -149,8 +149,15 @@ is under twelve characters or appears anywhere in `DATABASE_URL` — sharing one
 secret between the weaker surface and the stronger one means guessing the first
 hands over the second.
 
-**The web app only reads.** A read-only database role is enough for it and is
-what should be used in production. Only the scrapers write.
+**The web app reads the schedule and never writes it.** Only the scrapers write
+that, and the rule exists so a bug in a page can never put a time on the board
+that no source published.
+
+There is exactly one exception, and it is not the schedule: the contact form
+inserts into `contact_messages`. Nothing reads that table into the board and no
+scraper touches it. **A strictly read-only database role will therefore break
+the contact form** - it needs INSERT on that one table, and UPDATE on it if the
+"mark as handled" control is ever added. Everything else can stay read-only.
 
 ---
 

@@ -168,6 +168,21 @@ export const sessions = pgTable(
   }),
 );
 
+/**
+ * The contact form's messages - the only table the web app writes to.
+ * See db/migrations/0005_contact_messages.sql for why that is not a breach of
+ * the read-only rule.
+ */
+export const contactMessages = pgTable("contact_messages", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  handledAt: timestamp("handled_at", { withTimezone: true }),
+});
+
 export const scrapeRuns = pgTable("scrape_runs", {
   id: serial("id").primaryKey(),
   seriesId: integer("series_id")
