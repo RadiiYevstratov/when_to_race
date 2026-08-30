@@ -60,6 +60,17 @@ export default async function MessagesPage() {
             </span>
           </div>
 
+          {/* Why no email arrived, next to the message it is about. "skipped"
+              means no provider is configured, which is a supported state
+              rather than a fault; anything else is what the provider said. */}
+          {message.notifyStatus && message.notifyStatus !== "sent" ? (
+            <p className="mt-2 border-l-2 border-provisional pl-3 font-mono text-xs text-provisional">
+              {message.notifyStatus === "skipped"
+                ? "No email sent: notifications are not configured."
+                : `No email sent — ${message.notifyStatus}`}
+            </p>
+          ) : null}
+
           <p className="mt-1 text-xs text-ink-muted">
             {message.name} &middot;{" "}
             <a

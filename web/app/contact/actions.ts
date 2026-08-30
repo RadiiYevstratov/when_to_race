@@ -12,7 +12,7 @@
 import { headers } from "next/headers";
 
 import { assess, type ContactState } from "../../lib/contact.ts";
-import { storeMessage } from "../../lib/contact-store.ts";
+import { recordNotification, storeMessage } from "../../lib/contact-store.ts";
 import { notifyOwner } from "../../lib/contact-notify.ts";
 
 /**
@@ -82,8 +82,12 @@ export async function submitContact(
     const id = await storeMessage(values);
     // Never allowed to fail the submission: the message is already saved, and
     // the person who wrote it should not see an error because an email did not
-    // go out.
-    await notifyOwner(values, id);
+    // go out. Recorded against the message either way, so "why did no email
+    // arrive?" has an answer sitting next to the message it is about.
+    const status = await notifyOwner(values, id);
+    await recordNotification(id, status).catch((error) => {
+      console.error(`contact: could not record notification status for ${id}`, error);
+    });
   } catch (error) {
     console.error("contact: could not store message", error);
     return {

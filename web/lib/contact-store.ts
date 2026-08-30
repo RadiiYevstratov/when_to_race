@@ -27,6 +27,14 @@ export async function storeMessage(fields: ContactFields): Promise<number> {
   return row.id;
 }
 
+/** Whether the notification went out, recorded against the message it is about. */
+export async function recordNotification(id: number, status: string): Promise<void> {
+  await db
+    .update(contactMessages)
+    .set({ notifiedAt: new Date(), notifyStatus: status })
+    .where(eq(contactMessages.id, id));
+}
+
 export interface StoredMessage {
   id: number;
   name: string;
@@ -35,6 +43,8 @@ export interface StoredMessage {
   body: string;
   submittedAt: Date;
   handledAt: Date | null;
+  notifiedAt: Date | null;
+  notifyStatus: string | null;
 }
 
 export async function recentMessages(limit = 100): Promise<StoredMessage[]> {
@@ -47,6 +57,8 @@ export async function recentMessages(limit = 100): Promise<StoredMessage[]> {
       body: contactMessages.body,
       submittedAt: contactMessages.submittedAt,
       handledAt: contactMessages.handledAt,
+      notifiedAt: contactMessages.notifiedAt,
+      notifyStatus: contactMessages.notifyStatus,
     })
     .from(contactMessages)
     .orderBy(desc(contactMessages.submittedAt))

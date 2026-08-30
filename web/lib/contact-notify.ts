@@ -61,10 +61,17 @@ export function buildNotification(
   };
 }
 
-export async function notifyOwner(fields: ContactFields, id: number): Promise<void> {
+/**
+ * The outcome, so it can be recorded against the message.
+ *
+ * "skipped" is not a failure - it is the supported state when no provider is
+ * configured. Anything else that is not "sent" is the provider's own refusal,
+ * kept verbatim because it is usually the entire answer.
+ */
+export async function notifyOwner(fields: ContactFields, id: number): Promise<string> {
   const key = process.env.RESEND_API_KEY;
   const to = process.env.CONTACT_TO;
-  if (!key || !to) return; // not configured, and that is a supported state
+  if (!key || !to) return "skipped";
 
   try {
     const reply = await fetch(ENDPOINT, {
@@ -77,10 +84,19 @@ export async function notifyOwner(fields: ContactFields, id: number): Promise<vo
       // A message already saved is not worth holding a request open for.
       signal: AbortSignal.timeout(8000),
     });
-    if (!reply.ok) {
-      console.error(`contact: notification refused (${reply.status}) for message ${id}`);
-    }
+
+    if (reply.ok) return "sent";
+
+    // The body is where the useful part is: a shared sending domain that will
+    // only deliver to the account owner says exactly that here. Truncated
+    // because this is a status column, not a log.
+    const detail = await reply.text().catch(() => "");
+    const status = `HTTP ${reply.status}: ${detail.slice(0, 400)}`.trim();
+    console.error(`contact: notification refused for message ${id} - ${status}`);
+    return status;
   } catch (error) {
+    const status = `request failed: ${error instanceof Error ? error.message : String(error)}`;
     console.error(`contact: notification failed for message ${id}`, error);
+    return status.slice(0, 400);
   }
 }

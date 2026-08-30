@@ -181,6 +181,10 @@ export const contactMessages = pgTable("contact_messages", {
   body: text("body").notNull(),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   handledAt: timestamp("handled_at", { withTimezone: true }),
+  /** When the notification attempt finished; null if never attempted. */
+  notifiedAt: timestamp("notified_at", { withTimezone: true }),
+  /** "skipped", "sent", or the provider's refusal in its own words. */
+  notifyStatus: text("notify_status"),
 });
 
 export const scrapeRuns = pgTable("scrape_runs", {
