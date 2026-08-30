@@ -12,7 +12,11 @@
 
 import type { Metadata } from "next";
 
-import { recentMessages } from "../../../lib/contact-store.ts";
+import {
+  RETENTION_DAYS,
+  purgeExpired,
+  recentMessages,
+} from "../../../lib/contact-store.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +35,13 @@ function stamp(value: Date): string {
 }
 
 export default async function MessagesPage() {
+  // Opening this page is one of the two moments this table is touched, so it is
+  // where the keep-by date is enforced. A failure here must not stop the page
+  // rendering what it does have.
+  await purgeExpired().catch((error) => {
+    console.error("contact: could not purge expired messages", error);
+  });
+
   const messages = await recentMessages();
   const unread = messages.filter((message) => message.handledAt === null).length;
 
@@ -42,6 +53,12 @@ export default async function MessagesPage() {
           {messages.length === 0
             ? "Nothing yet."
             : `${messages.length} message${messages.length === 1 ? "" : "s"}, ${unread} unread. Times in UTC.`}
+        </p>
+        {/* Stated on the page rather than only in the code, because the
+            consequence falls on whoever is reading it: with no email
+            notification, anything not read inside the window is gone. */}
+        <p className="mt-1 text-xs text-provisional">
+          Messages are deleted {RETENTION_DAYS} days after they arrive.
         </p>
       </div>
 

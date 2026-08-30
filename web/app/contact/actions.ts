@@ -12,7 +12,11 @@
 import { headers } from "next/headers";
 
 import { assess, type ContactState } from "../../lib/contact.ts";
-import { recordNotification, storeMessage } from "../../lib/contact-store.ts";
+import {
+  purgeExpired,
+  recordNotification,
+  storeMessage,
+} from "../../lib/contact-store.ts";
 import { notifyOwner } from "../../lib/contact-notify.ts";
 
 /**
@@ -87,6 +91,12 @@ export async function submitContact(
     const status = await notifyOwner(values, id);
     await recordNotification(id, status).catch((error) => {
       console.error(`contact: could not record notification status for ${id}`, error);
+    });
+
+    // Housekeeping, and never the caller's problem: a failed purge must not
+    // turn someone's successful message into an error.
+    await purgeExpired().catch((error) => {
+      console.error("contact: could not purge expired messages", error);
     });
   } catch (error) {
     console.error("contact: could not store message", error);

@@ -14,6 +14,7 @@
 
 import type { Metadata } from "next";
 
+import { RETENTION_DAYS } from "../../lib/contact-store.ts";
 import { CONTACT_EMAIL } from "../../lib/official-sites.ts";
 import { ContactForm } from "./contact-form.tsx";
 
@@ -50,6 +51,11 @@ export default function ContactPage() {
       </div>
 
       <p className="mt-8 border-t border-rule pt-5 text-xs text-ink-faint">
+        We keep what you send for {RETENTION_DAYS} days and then delete it. Your address is
+        used to reply to you and for nothing else.
+      </p>
+
+      <p className="mt-2 text-xs text-ink-faint">
         If you would rather write to us directly, the address is{" "}
         <a
           href={`mailto:${CONTACT_EMAIL}`}
