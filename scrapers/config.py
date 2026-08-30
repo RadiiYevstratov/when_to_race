@@ -38,6 +38,10 @@ class CategoryConfig:
     # When set, the first band is `accent_color`, so nothing that wants a
     # single colour has to know this exists.
     accent_colors: tuple[str, ...] = ()
+    # The championship's own site, for sending a reader to the source. Only
+    # for a class that is its own championship with its own site: Formula 2 has
+    # one, Moto2 does not - it lives on motogp.com with the series.
+    official_url: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,9 @@ class SeriesConfig:
     accent_color: str
     sort_order: int
     source: SourceConfig
+    # The championship's own site. Where a reader is sent to check a time
+    # against the organiser, and what the footer links out to.
+    official_url: Optional[str] = None
     categories: tuple[CategoryConfig, ...] = field(default_factory=tuple)
 
     def category(self, code: str) -> CategoryConfig:
@@ -108,6 +115,21 @@ def _check_hex(series_code: str, cat: dict, field: str, color) -> str:
             f"{field} must be #rrggbb, got {color!r}"
         )
     return color
+
+
+def _official_url(where: str, raw: dict) -> Optional[str]:
+    """The championship's public site, if it has one here.
+
+    https only, and rejected loudly rather than skipped: this is rendered as a
+    link on every page of the site, so a typo is a dead end in the footer
+    rather than something that shows up in a log.
+    """
+    url = raw.get("official_url")
+    if url is None:
+        return None
+    if not (isinstance(url, str) and url.startswith("https://")):
+        raise ConfigError(f"{where}: official_url must be an https:// URL, got {url!r}")
+    return url
 
 
 def _category_color(series_code: str, cat: dict) -> Optional[str]:
@@ -168,6 +190,7 @@ def load_series(config_dir: Optional[str] = None) -> dict[str, SeriesConfig]:
                 sort_order=cat.get("sort_order", 100),
                 accent_color=_category_color(code, cat),
                 accent_colors=_category_colors(code, cat),
+                official_url=_official_url(f"series {code!r} category {cat['code']!r}", cat),
             )
             for cat in entry.get("categories", [])
         )
@@ -199,6 +222,7 @@ def load_series(config_dir: Optional[str] = None) -> dict[str, SeriesConfig]:
             sort_order=entry.get("sort_order", 100),
             source=source,
             categories=categories,
+            official_url=_official_url(f"series {code!r}", entry),
         )
 
     if not result:

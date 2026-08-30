@@ -15,6 +15,7 @@ name = "FIA Formula One World Championship"
 short_name = "Formula 1"
 accent_color = "#E8112D"
 sort_order = 10
+official_url = "https://www.formula1.com/"
 [series.source]
 adapter = "f1"
 status = "live"
@@ -49,6 +50,7 @@ short_name = "F2"
 sort_order = 20
 # Formula 2's own brand blue.
 accent_color = "#0096D6"
+official_url = "https://www.fiaformula2.com/"
 [[series.categories]]
 code = "f3"
 name = "FIA Formula 3 Championship"
@@ -56,6 +58,7 @@ short_name = "F3"
 sort_order = 30
 # Formula 3's own brand orange.
 accent_color = "#E35205"
+official_url = "https://www.fiaformula3.com/"
 [[series.categories]]
 code = "f1a"
 name = "F1 Academy"
@@ -67,12 +70,14 @@ sort_order = 40
 # this takes the pink half instead - still theirs, and magenta is the one hue
 # no other class occupies. The exact value is ours; they publish no hex.
 accent_color = "#FF3B9A"
+official_url = "https://www.f1academy.com/"
 [[series]]
 code = "wec"
 name = "FIA World Endurance Championship"
 short_name = "WEC"
 accent_color = "#2E9E5B"
 sort_order = 20
+official_url = "https://www.fiawec.com/"
 [series.source]
 adapter = "wec"
 # fiawec.com per-race pages, parsed from their schema.org JSON-LD (no session
@@ -98,6 +103,7 @@ name = "FIA World Rally Championship"
 short_name = "WRC"
 accent_color = "#C86A00"
 sort_order = 30
+official_url = "https://www.wrc.com/"
 [series.source]
 adapter = "wrc"
 status = "unverified"
@@ -133,6 +139,7 @@ short_name = "MotoGP"
 # saturation, enough lightness to survive a 3px rule on near-black.
 accent_color = "#8742D3"
 sort_order = 40
+official_url = "https://www.motogp.com/"
 [series.source]
 adapter = "motogp"
 # Endpoint discovered and the parser is written and tested (see docs/sources.md
@@ -180,6 +187,7 @@ short_name = "WorldSBK"
 # on every row is what tells the two apart.
 accent_color = "#FE0000"
 sort_order = 50
+official_url = "https://www.worldsbk.com/"
 [series.source]
 adapter = "wsbk"
 # worldsbk.com's own JSON:API (api.wsbk.pulselive.com). Same publisher (Dorna)
@@ -225,6 +233,7 @@ name = "IMSA SportsCar Championship"
 short_name = "IMSA"
 accent_color = "#7A4FBF"
 sort_order = 60
+official_url = "https://www.imsa.com/"
 [series.source]
 # HELD, and never run against the live database. Two independent reasons:
 #
@@ -263,6 +272,7 @@ name = "NTT IndyCar Series"
 short_name = "IndyCar"
 accent_color = "#0C7C8C"
 sort_order = 70
+official_url = "https://www.indycar.com/"
 [series.source]
 # Terms of Use, read 27 August 2026: "use an automatic device (such as a robot
 # or spider) or manual process to copy or 'scrape' the Services (or any portion
@@ -301,6 +311,7 @@ name = "NASCAR"
 short_name = "NASCAR"
 accent_color = "#B08A00"
 sort_order = 80
+official_url = "https://www.nascar.com/"
 [series.source]
 # NASCAR Digital Media Terms of Use, read 27 August 2026 (served at
 # https://www.imsa.com/terms/ and covering the whole NDM network): "Without the

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import Link from "next/link";
 
+import { Footer } from "../components/footer.tsx";
 import { JsonLd } from "../components/json-ld.tsx";
 import { TimezoneBar } from "../components/timezone-bar.tsx";
 import { readPreferences } from "../lib/preferences.ts";
@@ -143,52 +144,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
 
-        <footer className="mx-auto max-w-4xl px-4 pb-10 pt-6 text-xs leading-relaxed text-ink-faint">
-          <p>
-            Times are provisional and can change at short notice. Confirm with the official
-            source before travelling or setting an alarm.
-          </p>
-          <p className="mt-2">
-            An independent, non-commercial project. Not affiliated with, endorsed by or
-            connected to any championship, series organiser or rights holder. All series
-            names and trade marks belong to their respective owners.
-          </p>
-          <p className="mt-2">
-            Schedules are compiled from each championship&rsquo;s published calendar:{" "}
-            <a
-              href="https://www.motogp.com/en/calendar"
-              rel="noopener noreferrer"
-              className="border-b border-ink-faint hover:text-ink-muted"
-            >
-              MotoGP
-            </a>
-            ,{" "}
-            <a
-              href="https://www.worldsbk.com/en/calendar"
-              rel="noopener noreferrer"
-              className="border-b border-ink-faint hover:text-ink-muted"
-            >
-              WorldSBK
-            </a>{" "}
-            and{" "}
-            <a
-              href="https://www.fiawec.com/en"
-              rel="noopener noreferrer"
-              className="border-b border-ink-faint hover:text-ink-muted"
-            >
-              FIA WEC
-            </a>
-            . Formula 1 times come from the community-maintained{" "}
-            <a
-              href="https://f1.vidmar.net/"
-              rel="noopener noreferrer"
-              className="border-b border-ink-faint hover:text-ink-muted"
-            >
-              F1 Calendar
-            </a>{" "}
-            feed, not from an official Formula 1 source.
-          </p>
-        </footer>
+        <Footer allSeries={allSeries} />
       </body>
     </html>
   );

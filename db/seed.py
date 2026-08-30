@@ -61,17 +61,26 @@ def seed(database_url: str, dry_run: bool = False) -> dict[str, int]:
             for series in series_registry.values():
                 cursor.execute(
                     """
-                    INSERT INTO series (code, name, short_name, accent_color, sort_order)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO series
+                        (code, name, short_name, accent_color, sort_order, official_url)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (code) DO UPDATE
                        SET name = EXCLUDED.name,
                            short_name = EXCLUDED.short_name,
                            accent_color = EXCLUDED.accent_color,
                            sort_order = EXCLUDED.sort_order,
+                           official_url = EXCLUDED.official_url,
                            updated_at = now()
                     RETURNING id
                     """,
-                    (series.code, series.name, series.short_name, series.accent_color, series.sort_order),
+                    (
+                        series.code,
+                        series.name,
+                        series.short_name,
+                        series.accent_color,
+                        series.sort_order,
+                        series.official_url,
+                    ),
                 )
                 series_id = cursor.fetchone()[0]
                 counts["series"] += 1
@@ -81,8 +90,8 @@ def seed(database_url: str, dry_run: bool = False) -> dict[str, int]:
                         """
                         INSERT INTO categories
                             (series_id, code, name, short_name, is_headline, sort_order,
-                             accent_color, accent_colors)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                             accent_color, accent_colors, official_url)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (series_id, code) DO UPDATE
                            SET name = EXCLUDED.name,
                                short_name = EXCLUDED.short_name,
@@ -90,6 +99,7 @@ def seed(database_url: str, dry_run: bool = False) -> dict[str, int]:
                                sort_order = EXCLUDED.sort_order,
                                accent_color = EXCLUDED.accent_color,
                                accent_colors = EXCLUDED.accent_colors,
+                               official_url = EXCLUDED.official_url,
                                updated_at = now()
                         """,
                         (
@@ -103,6 +113,7 @@ def seed(database_url: str, dry_run: bool = False) -> dict[str, int]:
                             # NULL rather than an empty string: the check
                             # constraint wants a list or nothing.
                             ",".join(category.accent_colors) or None,
+                            category.official_url,
                         ),
                     )
                     counts["categories"] += 1

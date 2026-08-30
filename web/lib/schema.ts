@@ -56,6 +56,8 @@ export const series = pgTable("series", {
   name: text("name").notNull(),
   shortName: text("short_name").notNull(),
   accentColor: text("accent_color").notNull(),
+  /** The championship's own public site, for linking a reader to the source. */
+  officialUrl: text("official_url"),
   sortOrder: integer("sort_order").notNull().default(100),
   isActive: boolean("is_active").notNull().default(true),
   lastSuccessfulScrape: timestamp("last_successful_scrape", { withTimezone: true }),
@@ -80,6 +82,8 @@ export const categories = pgTable(
      * case and means the mark is the single accentColor above.
      */
     accentColors: text("accent_colors"),
+    /** Set only where the class is its own championship with its own site. */
+    officialUrl: text("official_url"),
     sortOrder: integer("sort_order").notNull().default(100),
   },
   (table) => ({

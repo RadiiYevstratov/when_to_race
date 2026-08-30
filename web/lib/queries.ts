@@ -684,12 +684,16 @@ function seasonSelectionFilter(selection: Selection) {
  * WorldSSP300 are seeded but no longer run, and a chip that always yields an
  * empty board reads as a broken filter rather than a discontinued class.
  */
+/** What the filter and the footer both read: every series with its classes. */
+export type SeriesCatalogue = Awaited<ReturnType<typeof getSeriesCatalogue>>;
+
 export async function getSeriesCatalogue() {
   const rows = await db
     .select({
       seriesCode: series.code,
       seriesShortName: series.shortName,
       accentColor: series.accentColor,
+      seriesOfficialUrl: series.officialUrl,
       lastSuccessfulScrape: series.lastSuccessfulScrape,
       seriesSortOrder: series.sortOrder,
       categoryCode: categories.code,
@@ -697,6 +701,7 @@ export async function getSeriesCatalogue() {
       categorySortOrder: categories.sortOrder,
       categoryAccentColor: sql<string>`coalesce(${categories.accentColor}, ${series.accentColor})`,
       categoryAccentColors: categories.accentColors,
+      categoryOfficialUrl: categories.officialUrl,
       sessionCount: sql<number>`count(${sessions.id})`.mapWith(Number),
     })
     .from(series)
@@ -710,6 +715,7 @@ export async function getSeriesCatalogue() {
       series.code,
       series.shortName,
       series.accentColor,
+      series.officialUrl,
       series.lastSuccessfulScrape,
       series.sortOrder,
       categories.code,
@@ -717,6 +723,7 @@ export async function getSeriesCatalogue() {
       categories.sortOrder,
       categories.accentColor,
       categories.accentColors,
+      categories.officialUrl,
     )
     .orderBy(asc(series.sortOrder), asc(categories.sortOrder));
 
@@ -726,12 +733,14 @@ export async function getSeriesCatalogue() {
       code: string;
       shortName: string;
       accentColor: string;
+      officialUrl: string | null;
       lastSuccessfulScrape: Date | null;
       categories: {
         code: string;
         shortName: string;
         accentColor: string;
         accentColors: string | null;
+        officialUrl: string | null;
         sessionCount: number;
       }[];
     }
@@ -744,6 +753,7 @@ export async function getSeriesCatalogue() {
         code: row.seriesCode,
         shortName: row.seriesShortName,
         accentColor: row.accentColor,
+        officialUrl: row.seriesOfficialUrl,
         lastSuccessfulScrape: row.lastSuccessfulScrape,
         categories: [],
       };
@@ -754,6 +764,7 @@ export async function getSeriesCatalogue() {
       shortName: row.categoryShortName,
       accentColor: row.categoryAccentColor,
       accentColors: row.categoryAccentColors,
+      officialUrl: row.categoryOfficialUrl,
       sessionCount: row.sessionCount,
     });
   }
