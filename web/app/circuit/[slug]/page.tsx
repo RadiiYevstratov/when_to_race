@@ -64,7 +64,9 @@ export default async function CircuitPage({ params }: PageProps) {
   const [{ timeZone }, events] = await Promise.all([readPreferences(), getEventsAtVenue(venue.slug)]);
 
   const upcoming = events.filter((event) => new Date(event.endsAtUtc) >= now);
-  const past = events.filter((event) => new Date(event.endsAtUtc) < now);
+  // Reversed so both lists read outwards from today: soonest first above, most
+  // recent first below. The same rule the season calendar uses.
+  const past = events.filter((event) => new Date(event.endsAtUtc) < now).reverse();
 
   const crumbs = [
     { name: "ON TRACK", path: "/" },

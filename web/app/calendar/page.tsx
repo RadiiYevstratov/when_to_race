@@ -1,6 +1,14 @@
 /**
  * Season calendar.
  *
+ * Ordered by distance from now, in both directions: what is still to come
+ * lists soonest first, what has already run lists most recent first, and the
+ * two meet at today. One rule, applied twice.
+ *
+ * It used to be a single run in season order, which meant opening this in
+ * August and scrolling past every round since February to find the next one. A
+ * season is written forwards; nobody arrives wanting to start at round one.
+ *
  * Past rounds are de-emphasised but never removed, and never show results -
  * results are a spoiler risk on a schedule product, so they are out of scope
  * entirely rather than hidden behind a toggle.
@@ -27,6 +35,8 @@ interface PageProps {
   searchParams: Promise<{ season?: string }>;
 }
 
+type SeasonEvent = Awaited<ReturnType<typeof getSeasonEvents>>[number];
+
 export async function generateMetadata({ searchParams }: PageProps) {
   const { season: seasonParam } = await searchParams;
   const thisYear = new Date().getUTCFullYear();
@@ -48,6 +58,46 @@ export async function generateMetadata({ searchParams }: PageProps) {
   };
 }
 
+function RoundRow({ event, timeZone }: { event: SeasonEvent; timeZone: string }) {
+  const startKey = dayKey(event.startsAtUtc, timeZone);
+  const endKey = dayKey(event.endsAtUtc, timeZone);
+  const span =
+    startKey === endKey
+      ? formatShortDay(startKey)
+      : `${formatShortDay(startKey)} – ${formatShortDay(endKey)}`;
+
+  return (
+    <li className="flex items-baseline gap-3 border-b border-rule py-3">
+      <span
+        aria-hidden="true"
+        className="mt-1 h-3.5 w-[3px] shrink-0"
+        style={{ backgroundColor: event.accentColor }}
+      />
+      <span className="tnum w-10 shrink-0 font-mono text-xs text-ink-faint">
+        {event.roundNumber ? `R${event.roundNumber}` : "—"}
+      </span>
+      <span className="min-w-0 flex-1">
+        <Link
+          href={`/weekend/${event.seriesCode}/${event.season}/${event.slug}`}
+          className="block truncate hover:text-ink-muted"
+        >
+          {event.name}
+        </Link>
+        <span className="block truncate text-xs text-ink-muted">
+          <Link href={circuitPath(event.venueSlug)} className="hover:text-ink">
+            {event.venueName}
+          </Link>
+          {event.detailLevel === "partial" ? " · partial schedule" : ""}
+        </span>
+      </span>
+      <span className="tnum shrink-0 font-mono text-xs text-ink-muted">{span}</span>
+      {event.status === "cancelled" ? (
+        <span className="font-mono text-xs text-cancelled">Cancelled</span>
+      ) : null}
+    </li>
+  );
+}
+
 export default async function CalendarPage({ searchParams }: PageProps) {
   const now = new Date();
   const { season: seasonParam } = await searchParams;
@@ -56,6 +106,16 @@ export default async function CalendarPage({ searchParams }: PageProps) {
 
   const { timeZone, selection } = await readPreferences();
   const events = await getSeasonEvents(selection, season);
+
+  // Done means finished, not started: a weekend running right now belongs with
+  // what is coming, because it is on.
+  const hasRun = (event: SeasonEvent) =>
+    new Date(event.endsAtUtc).getTime() < now.getTime();
+
+  const upcoming = events.filter((event) => !hasRun(event));
+  // Reversed so this list also reads outwards from today, rather than starting
+  // at the far end of the season.
+  const past = events.filter(hasRun).reverse();
 
   return (
     <div className="space-y-6">
@@ -84,53 +144,43 @@ export default async function CalendarPage({ searchParams }: PageProps) {
           hint="Calendars usually appear several months ahead."
         />
       ) : (
-        <ul className="border-t border-rule">
-          {events.map((event) => {
-            const past = new Date(event.endsAtUtc).getTime() < now.getTime();
-            const startKey = dayKey(event.startsAtUtc, timeZone);
-            const endKey = dayKey(event.endsAtUtc, timeZone);
-            const span =
-              startKey === endKey
-                ? formatShortDay(startKey)
-                : `${formatShortDay(startKey)} \u2013 ${formatShortDay(endKey)}`;
+        <>
+          {upcoming.length > 0 ? (
+            <section aria-labelledby="coming-heading">
+              <h2 id="coming-heading" className="eyebrow">
+                Still to come
+              </h2>
+              <ul className="mt-3 border-t border-rule">
+                {upcoming.map((event) => (
+                  <RoundRow
+                    key={`${event.seriesCode}-${event.id}`}
+                    event={event}
+                    timeZone={timeZone}
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
-            return (
-              <li
-                key={`${event.seriesCode}-${event.id}`}
-                className={`flex items-baseline gap-3 border-b border-rule py-3 ${
-                  past ? "opacity-50" : ""
-                }`}
-              >
-                <span
-                  aria-hidden="true"
-                  className="mt-1 h-3.5 w-[3px] shrink-0"
-                  style={{ backgroundColor: event.accentColor }}
-                />
-                <span className="tnum w-10 shrink-0 font-mono text-xs text-ink-faint">
-                  {event.roundNumber ? `R${event.roundNumber}` : "\u2014"}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <Link
-                    href={`/weekend/${event.seriesCode}/${event.season}/${event.slug}`}
-                    className="block truncate hover:text-ink-muted"
-                  >
-                    {event.name}
-                  </Link>
-                  <span className="block truncate text-xs text-ink-muted">
-                    <Link href={circuitPath(event.venueSlug)} className="hover:text-ink">
-                      {event.venueName}
-                    </Link>
-                    {event.detailLevel === "partial" ? " \u00b7 partial schedule" : ""}
-                  </span>
-                </span>
-                <span className="tnum shrink-0 font-mono text-xs text-ink-muted">{span}</span>
-                {event.status === "cancelled" ? (
-                  <span className="font-mono text-xs text-cancelled">Cancelled</span>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+          {past.length > 0 ? (
+            <section aria-labelledby="run-heading">
+              <h2 id="run-heading" className="eyebrow">
+                Already run
+              </h2>
+              {/* Dimmed as a group rather than row by row. The heading has
+                  said these are done; repeating it on every line is noise. */}
+              <ul className="mt-3 border-t border-rule opacity-60">
+                {past.map((event) => (
+                  <RoundRow
+                    key={`${event.seriesCode}-${event.id}`}
+                    event={event}
+                    timeZone={timeZone}
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </>
       )}
     </div>
   );
