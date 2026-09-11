@@ -45,8 +45,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Header reads as a machined bar rather than a flat block. */
-header {
+/* The site header reads as a machined bar rather than a flat block.
+   A class, not the element: written as `header`, this also painted every
+   page's own <header> - a weekend's title block became a card nobody had
+   designed, with its text flush against edges that were never meant to be
+   there. */
+.site-header {
   background: linear-gradient(180deg, #111318 0%, #0c0d10 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
@@ -105,8 +109,12 @@ header {
     0 0 14px rgb(12 13 16 / 0.8);
 }
 
-/* --- Next Up hero -------------------------------------------------------- */
-.nextup-card {
+/* --- Cards ----------------------------------------------------------------
+ * The Next Up hero, and the title card at the top of a weekend or circuit
+ * page. One surface, so the two read as the same object.
+ * ------------------------------------------------------------------------- */
+.nextup-card,
+.page-card {
   position: relative;
   overflow: hidden;
   background: linear-gradient(180deg, #15171c 0%, #0f1115 100%);

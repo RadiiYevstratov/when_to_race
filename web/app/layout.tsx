@@ -103,7 +103,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           Skip to the schedule
         </a>
 
-        <header className="border-b border-rule bg-panel">
+        <header className="site-header border-b border-rule bg-panel">
           <div className="mx-auto flex max-w-4xl flex-wrap items-baseline gap-x-6 gap-y-3 px-4 py-6">
             <Link href="/" className="font-mono text-base font-semibold tracking-tight">
               ON TRACK

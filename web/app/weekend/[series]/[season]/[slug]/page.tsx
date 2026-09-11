@@ -145,27 +145,32 @@ export default async function WeekendPage({ params }: PageProps) {
         </ol>
       </nav>
 
-      <header className="has-circuit-art relative overflow-hidden">
-        <CircuitArt venueSlug={event.venueSlug} />
-        <div className="flex items-baseline gap-3">
-          <span
-            aria-hidden="true"
-            className="h-4 w-[3px]"
-            style={{ backgroundColor: event.accentColor }}
-          />
-          <span className="eyebrow">{event.seriesShortName}</span>
-          <span className="font-mono text-xs text-ink-faint">{event.season}</span>
+      {/* Two zones in one card. The drawing lives only in the upper one, which
+          clips it, so the rule between the zones can never run through the
+          track - however tall the title wraps or however wide the screen. */}
+      <header className="page-card border border-rule">
+        <div className="has-circuit-art relative overflow-hidden p-5">
+          <CircuitArt venueSlug={event.venueSlug} />
+          <div className="flex items-baseline gap-3">
+            <span
+              aria-hidden="true"
+              className="h-4 w-[3px]"
+              style={{ backgroundColor: event.accentColor }}
+            />
+            <span className="eyebrow">{event.seriesShortName}</span>
+            <span className="font-mono text-xs text-ink-faint">{event.season}</span>
+          </div>
+
+          <h1 className="mt-2 text-3xl leading-tight">{event.eventName}</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            <Link href={circuitPath(event.venueSlug)} className="hover:text-ink">
+              {event.venueName}
+            </Link>
+            {event.venueCity ? `, ${event.venueCity}` : ""} &middot; {event.venueCountry}
+          </p>
         </div>
 
-        <h1 className="mt-2 text-3xl leading-tight">{event.eventName}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          <Link href={circuitPath(event.venueSlug)} className="hover:text-ink">
-            {event.venueName}
-          </Link>
-          {event.venueCity ? `, ${event.venueCity}` : ""} &middot; {event.venueCountry}
-        </p>
-
-        <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-y border-rule py-3 font-mono text-xs">
+        <dl className="flex flex-wrap gap-x-8 gap-y-3 border-t border-rule px-5 py-4 font-mono text-xs">
           <div>
             <dt className="eyebrow">Your time</dt>
             <dd className="mt-0.5">
@@ -196,7 +201,7 @@ export default async function WeekendPage({ params }: PageProps) {
         </dl>
 
         {stale ? (
-          <p className="mt-3 border-l-2 border-provisional bg-panel px-3 py-2 text-xs text-provisional">
+          <p className="border-t border-rule px-5 py-3 text-xs text-provisional">
             These times have not been refreshed from the official source in over 48 hours. Confirm
             before relying on them.
           </p>

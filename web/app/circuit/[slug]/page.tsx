@@ -97,13 +97,17 @@ export default async function CircuitPage({ params }: PageProps) {
         </ol>
       </nav>
 
-      <header className="has-circuit-art relative overflow-hidden">
-        <CircuitArt venueSlug={venue.slug} />
-        <span className="eyebrow">Circuit</span>
-        <h1 className="mt-2 text-3xl leading-tight">{venue.name}</h1>
-        <p className="mt-1 text-sm text-ink-muted">{where(venue)}</p>
+      {/* Same card as a weekend page: the drawing is clipped to the upper zone,
+          so the rule below it never crosses the track. */}
+      <header className="page-card border border-rule">
+        <div className="has-circuit-art relative overflow-hidden p-5">
+          <CircuitArt venueSlug={venue.slug} />
+          <span className="eyebrow block">Circuit</span>
+          <h1 className="mt-2 text-3xl leading-tight">{venue.name}</h1>
+          <p className="mt-1 text-sm text-ink-muted">{where(venue)}</p>
+        </div>
 
-        <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-y border-rule py-3 font-mono text-xs">
+        <dl className="flex flex-wrap gap-x-8 gap-y-3 border-t border-rule px-5 py-4 font-mono text-xs">
           <div>
             <dt className="eyebrow">Local time now</dt>
             <dd className="tnum mt-0.5">
