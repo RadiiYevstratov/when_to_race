@@ -187,6 +187,7 @@ export function DayBoard({
   now,
   showEvent = false,
   headingLevel = 3,
+  order = "asc",
 }: {
   sessions: SessionRow[];
   timeZone: string;
@@ -201,8 +202,10 @@ export function DayBoard({
    * as missing.
    */
   headingLevel?: 2 | 3;
+  /** "desc" for a list of finished sessions, which reads most recent first. */
+  order?: "asc" | "desc";
 }) {
-  const groups = groupByDay(sessions, timeZone);
+  const groups = groupByDay(sessions, timeZone, order);
   const DayHeading = (headingLevel === 2 ? "h2" : "h3") as "h2" | "h3";
 
   return (

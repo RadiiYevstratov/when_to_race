@@ -193,11 +193,47 @@ export function dayShift(value: string | Date, viewerZone: string, circuitZone: 
   return Math.round(difference / 86_400_000);
 }
 
-/** Group chronologically by the viewer's calendar day. */
-export function groupByDay<T extends HasStart>(items: T[], timeZone: string): DayGroup<T>[] {
-  const buckets = new Map<DayKey, T[]>();
-  const sorted = [...items].sort(
+/**
+ * Split a list at now: what has not finished yet, and what has.
+ *
+ * Every list on the site that mixes the two shows them in this order, so the
+ * rule lives in one place. Both halves read outwards from now - what is ahead
+ * soonest first, what is done most recent first - which is why the second half
+ * is reversed rather than left in season order.
+ *
+ * "Finished" is by end, not start, and the end is the same one the live badge
+ * uses, published or assumed. A session that is running belongs with what is
+ * ahead, because it is on.
+ */
+export function splitByFinished<T extends HasSpan>(
+  items: T[],
+  now: Date = new Date(),
+): { ahead: T[]; done: T[] } {
+  const byStart = [...items].sort(
     (a, b) => toDate(a.startsAtUtc).getTime() - toDate(b.startsAtUtc).getTime(),
+  );
+  const finished = (item: T) => sessionEnd(item).getTime() < now.getTime();
+  return {
+    ahead: byStart.filter((item) => !finished(item)),
+    done: byStart.filter(finished).reverse(),
+  };
+}
+
+/**
+ * Sessions grouped by the viewer's calendar day.
+ *
+ * `order` is for a list of things already done, which reads most recent first:
+ * the days run backwards and so do the sessions inside each one.
+ */
+export function groupByDay<T extends HasStart>(
+  items: T[],
+  timeZone: string,
+  order: "asc" | "desc" = "asc",
+): DayGroup<T>[] {
+  const buckets = new Map<DayKey, T[]>();
+  const direction = order === "desc" ? -1 : 1;
+  const sorted = [...items].sort(
+    (a, b) => direction * (toDate(a.startsAtUtc).getTime() - toDate(b.startsAtUtc).getTime()),
   );
 
   for (const item of sorted) {
@@ -208,7 +244,7 @@ export function groupByDay<T extends HasStart>(items: T[], timeZone: string): Da
   }
 
   return [...buckets.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => direction * a.localeCompare(b))
     .map(([key, groupItems]) => ({
       key,
       heading: formatDayHeading(key, timeZone),

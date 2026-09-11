@@ -25,6 +25,7 @@ import {
   sessionEnd,
   assumedDurationMinutes,
   shiftDayKey,
+  splitByFinished,
 } from "../lib/time.ts";
 
 import { buildCalendar, escapeText, foldLine, parseSelection } from "../lib/ics.ts";
@@ -95,6 +96,68 @@ describe("day grouping", () => {
       groups.map((group) => group.key),
       ["2026-11-21", "2026-11-22"],
     );
+  });
+
+  test("a finished list runs backwards: latest day first, latest session first", () => {
+    const groups = groupByDay(
+      [
+        { startsAtUtc: "2026-09-04T11:30:00Z" },
+        { startsAtUtc: "2026-09-05T09:00:00Z" },
+        { startsAtUtc: "2026-09-05T14:00:00Z" },
+      ],
+      "Europe/Bratislava",
+      "desc",
+    );
+    assert.deepEqual(
+      groups.map((group) => group.key),
+      ["2026-09-05", "2026-09-04"],
+    );
+    assert.deepEqual(
+      groups[0].items.map((item) => item.startsAtUtc),
+      ["2026-09-05T14:00:00Z", "2026-09-05T09:00:00Z"],
+    );
+  });
+});
+
+describe("what is ahead before what is done", () => {
+  const NOW = new Date("2026-09-11T14:00:00Z");
+  const at = (startsAtUtc: string, endsAtUtc: string) => ({ startsAtUtc, endsAtUtc });
+
+  test("ahead reads soonest first, done reads most recent first", () => {
+    const { ahead, done } = splitByFinished(
+      [
+        at("2026-09-11T09:00:00Z", "2026-09-11T10:00:00Z"), // finished this morning
+        at("2026-09-11T16:00:00Z", "2026-09-11T17:00:00Z"), // later today
+        at("2026-09-11T12:00:00Z", "2026-09-11T13:00:00Z"), // finished an hour ago
+        at("2026-09-11T13:30:00Z", "2026-09-11T15:00:00Z"), // running now
+        at("2026-09-12T10:00:00Z", "2026-09-12T11:00:00Z"), // tomorrow
+      ],
+      NOW,
+    );
+    assert.deepEqual(
+      ahead.map((session) => session.startsAtUtc),
+      ["2026-09-11T13:30:00Z", "2026-09-11T16:00:00Z", "2026-09-12T10:00:00Z"],
+    );
+    assert.deepEqual(
+      done.map((session) => session.startsAtUtc),
+      ["2026-09-11T12:00:00Z", "2026-09-11T09:00:00Z"],
+    );
+  });
+
+  test("a running session with no published end is still ahead", () => {
+    // Started twenty minutes ago; with no end it runs the assumed length.
+    const { ahead, done } = splitByFinished(
+      [{ startsAtUtc: "2026-09-11T13:40:00Z", endsAtUtc: null, sessionType: "qualifying" }],
+      NOW,
+    );
+    assert.equal(ahead.length, 1);
+    assert.equal(done.length, 0);
+  });
+
+  test("does not reorder the list it was given", () => {
+    const input = [at("2026-09-11T16:00:00Z", "2026-09-11T17:00:00Z"), at("2026-09-11T09:00:00Z", "2026-09-11T10:00:00Z")];
+    splitByFinished(input, NOW);
+    assert.equal(input[0].startsAtUtc, "2026-09-11T16:00:00Z");
   });
 });
 

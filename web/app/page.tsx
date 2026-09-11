@@ -35,6 +35,7 @@ import {
   formatDayHeading,
   formatTime,
   shiftDayKey,
+  splitByFinished,
 } from "../lib/time.ts";
 
 export const dynamic = "force-dynamic";
@@ -80,9 +81,17 @@ export default async function HomePage({
   const dayOf = (session: (typeof windowWithoutLive)[number]) =>
     dayKey(session.startsAtUtc, timeZone);
 
-  const today = windowWithoutLive.filter((session) => dayOf(session) === todayKey);
-  const tomorrow = windowWithoutLive.filter((session) => dayOf(session) === tomorrowKey);
-  const later = windowWithoutLive.filter(
+  // Split before sorting into days. The window reaches six hours back, so
+  // without this a session that finished this morning heads today's list - and
+  // just after midnight one from late last night heads the next seven days.
+  const { ahead, done } = splitByFinished(windowWithoutLive, now);
+
+  const today = ahead.filter((session) => dayOf(session) === todayKey);
+  // Only today's. Something that finished yesterday is not what anyone opened
+  // this page to find.
+  const earlierToday = done.filter((session) => dayOf(session) === todayKey);
+  const tomorrow = ahead.filter((session) => dayOf(session) === tomorrowKey);
+  const later = ahead.filter(
     (session) => dayOf(session) !== todayKey && dayOf(session) !== tomorrowKey,
   );
 
@@ -180,10 +189,19 @@ export default async function HomePage({
         {today.length > 0 ? (
           <SessionList sessions={today} timeZone={timeZone} now={now} showEvent />
         ) : (
-          // "More" because anything running right now is above, and because a
-          // session that finished an hour ago has already dropped off this list.
+          // "More" because anything running right now is in the section above,
+          // and anything already finished is listed below.
           <QuietEmpty message="Nothing more today." />
         )}
+
+        {earlierToday.length > 0 ? (
+          <div className="mt-5">
+            {/* Below what is still to come, most recent first. The rows dim
+                themselves once finished, so there is no second fade here. */}
+            <h3 className="eyebrow text-ink-faint">Already finished today</h3>
+            <SessionList sessions={earlierToday} timeZone={timeZone} now={now} showEvent />
+          </div>
+        ) : null}
       </section>
 
       <section aria-labelledby="tomorrow-heading">

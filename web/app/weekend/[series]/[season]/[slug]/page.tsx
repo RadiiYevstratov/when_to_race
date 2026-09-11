@@ -1,9 +1,12 @@
 /**
  * Weekend view.
  *
- * One event, every category on it, in chronological order. This is the view
- * that does not exist anywhere else: F2 and F3 interleaved with F1 rather than
- * on a separate page, because that is how the weekend actually runs.
+ * One event, every category on it, interleaved. This is the view that does not
+ * exist anywhere else: F2 and F3 between F1's sessions rather than on a
+ * separate page, because that is how the weekend actually runs.
+ *
+ * Once the weekend is under way, what is still to come is listed first and what
+ * has already run follows it - the same rule as every other list on the site.
  */
 
 import Link from "next/link";
@@ -27,6 +30,7 @@ import {
   formatZoneName,
   isStale,
   offsetLabel,
+  splitByFinished,
 } from "../../../../../lib/time.ts";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +93,12 @@ export default async function WeekendPage({ params }: PageProps) {
   const event = weekend.event;
   const circuitZone = event.circuitTimezone;
   const stale = isStale(event.lastSuccessfulScrape, now);
+
+  // During a race weekend what is still to come goes first and the finished
+  // sessions follow, most recent first. Before the weekend only the first list
+  // exists, after it only the second - and neither then needs a label.
+  const { ahead, done } = splitByFinished(weekend.sessions, now);
+  const split = ahead.length > 0 && done.length > 0;
 
   // Listed in championship order rather than the order they first run. F1
   // Academy often opens a Friday, but "F1 Academy - F3 - F2 - F1" reads as an
@@ -193,7 +203,33 @@ export default async function WeekendPage({ params }: PageProps) {
         ) : null}
       </header>
 
-      <DayBoard sessions={weekend.sessions} timeZone={timeZone} now={now} headingLevel={2} />
+      {ahead.length > 0 ? (
+        <section aria-labelledby={split ? "ahead-heading" : undefined}>
+          {split ? (
+            <h2 id="ahead-heading" className="eyebrow mb-3">
+              Still to come
+            </h2>
+          ) : null}
+          <DayBoard sessions={ahead} timeZone={timeZone} now={now} headingLevel={split ? 3 : 2} />
+        </section>
+      ) : null}
+
+      {done.length > 0 ? (
+        <section aria-labelledby={split ? "done-heading" : undefined}>
+          {split ? (
+            <h2 id="done-heading" className="eyebrow mb-3">
+              Already run
+            </h2>
+          ) : null}
+          <DayBoard
+            sessions={done}
+            timeZone={timeZone}
+            now={now}
+            headingLevel={split ? 3 : 2}
+            order="desc"
+          />
+        </section>
+      ) : null}
 
       <footer className="space-y-3 border-t border-rule pt-4 text-xs text-ink-muted">
         <p>
