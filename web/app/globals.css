@@ -68,7 +68,16 @@ header {
   box-sizing: border-box;
   transform: translateY(-50%);
   color: var(--ink);
-  opacity: 0.09;
+  /* Was 0.09, which measured 1.24:1 against the card: there, technically, but
+     not something anyone notices. 0.20 is 1.75:1.
+     The ceiling is set by the text, not the drawing. With the halo below,
+     muted text sitting fully over the drawing stays above 4.5:1 up to 0.21 -
+     measured on a thin 16px regular line, which fails before the bolder
+     eyebrows do. 0.20 leaves a notch of margin, because that measurement used
+     stand-in faces rather than Archivo itself.
+     One value at every width. The halo is what keeps text readable, so there
+     is nothing left for a breakpoint to protect. */
+  opacity: 0.2;
   pointer-events: none;
   z-index: 0;
 }
@@ -76,6 +85,24 @@ header {
 .has-circuit-art > *:not(.circuit-art) {
   position: relative; /* keep the text above the outline */
   z-index: 1;
+  /* A halo in the surface colour, and the reason the drawing could get
+     brighter at all.
+     Against the dark card it is invisible. Where text crosses the lit drawing
+     it pushes the drawing back from the letters, so muted text keeps its
+     contrast however far into the drawing it runs.
+     That distance cannot be designed around. On a weekend page it is set by
+     two timezone names - one belongs to the circuit, the other to whoever is
+     reading - so the same label reached 38% into the drawing at Monza and 59%
+     at Melbourne, and would reach further for a reader in Buenos Aires. A fade
+     tuned to the pages that were measured loses to a reader who wasn't.
+     Five layers rather than three: the lighter halo only held text at 4.5:1
+     up to 0.15, which is barely brighter than where this started. */
+  text-shadow:
+    0 0 1px rgb(12 13 16),
+    0 0 2px rgb(12 13 16),
+    0 0 4px rgb(12 13 16),
+    0 0 8px rgb(12 13 16 / 0.95),
+    0 0 14px rgb(12 13 16 / 0.8);
 }
 
 /* --- Next Up hero -------------------------------------------------------- */
