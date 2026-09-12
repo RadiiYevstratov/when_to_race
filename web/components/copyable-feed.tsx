@@ -1,35 +1,17 @@
 "use client";
 
 /**
- * The feed URL has to be absolute for a calendar client to subscribe, and the
- * origin is only known in the browser unless NEXT_PUBLIC_SITE_URL is set. So
- * this renders the relative path server-side and upgrades to the full webcal://
- * link once mounted.
+ * The feed for whatever the viewer is following, with its URL on show.
+ *
+ * The hero version: one feed, so the URL itself is worth the space. The
+ * per-championship rows below it use the compact FeedLinks instead.
  */
 
-import { useEffect, useState } from "react";
+import { useCopied, useFeedUrls } from "../lib/feed-url.ts";
 
 export function CopyableFeed({ selection }: { selection: string }) {
-  const path = `/api/calendar/${selection}.ics`;
-  const [origin, setOrigin] = useState(process.env.NEXT_PUBLIC_SITE_URL ?? "");
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!origin) setOrigin(window.location.origin);
-  }, [origin]);
-
-  const httpUrl = origin ? `${origin}${path}` : path;
-  const webcalUrl = origin ? httpUrl.replace(/^https?:/, "webcal:") : path;
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(webcalUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  }
+  const { path, webcalUrl } = useFeedUrls(selection);
+  const [copied, copy] = useCopied();
 
   return (
     <div className="space-y-2">
@@ -39,7 +21,7 @@ export function CopyableFeed({ selection }: { selection: string }) {
         </code>
         <button
           type="button"
-          onClick={copy}
+          onClick={() => copy(webcalUrl)}
           className="border border-ink px-3 py-1.5 font-mono text-xs hover:bg-panel"
         >
           {copied ? "Copied" : "Copy link"}

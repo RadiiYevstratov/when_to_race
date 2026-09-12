@@ -78,6 +78,18 @@ export function formatSelection(
   return tokens.length > 0 ? tokens.join(separator) : "all";
 }
 
+/**
+ * The token for one category on its own - `f1.f2` is Formula 2 and nothing
+ * else.
+ *
+ * The prefix is what keeps it a category: written bare, `f2` would be read
+ * back as a series next time, and the subscribe page hands these straight to
+ * calendar clients that keep them for a season.
+ */
+export function categoryToken(seriesCode: string, categoryCode: string): string {
+  return `${seriesCode}.${categoryCode}`;
+}
+
 export function isSeriesSelected(selection: Selection, group: SeriesGroup): boolean {
   return selection.seriesCodes.includes(group.code);
 }

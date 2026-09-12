@@ -10,6 +10,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  categoryToken,
   collapse,
   formatSelection,
   isCategorySelected,
@@ -224,5 +225,33 @@ describe("reading a season from a URL", () => {
   test("the upper bound moves with the clock, not with the code", () => {
     assert.equal(maxSeason(new Date("2026-01-01T00:00:00Z")), 2031);
     assert.equal(maxSeason(new Date("2030-01-01T00:00:00Z")), 2035);
+  });
+});
+
+describe("the feed URL for one championship", () => {
+  test("a class token comes back as that class and nothing else", () => {
+    // What the subscribe page puts behind each Download link. Someone
+    // following F2 must not be handed the whole Formula 1 weekend.
+    for (const code of F1.categoryCodes) {
+      const token = categoryToken(F1.code, code);
+      assert.deepEqual(parseSelection(token), { seriesCodes: [], categoryCodes: [code] });
+      // The route strips the extension before parsing, so the link as written
+      // has to survive it.
+      assert.deepEqual(parseSelection(`${token}.ics`), {
+        seriesCodes: [],
+        categoryCodes: [code],
+      });
+    }
+  });
+
+  test("F1 alone is not the same feed as the Formula 1 weekend", () => {
+    assert.notEqual(categoryToken(F1.code, "f1"), F1.code);
+    assert.deepEqual(parseSelection(categoryToken(F1.code, "f1")), {
+      seriesCodes: [],
+      categoryCodes: ["f1"],
+    });
+    // The row above the classes keeps the series token, so it still means
+    // every class - including one added next season.
+    assert.deepEqual(parseSelection(F1.code), { seriesCodes: ["f1"], categoryCodes: [] });
   });
 });

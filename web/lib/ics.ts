@@ -41,6 +41,42 @@ export interface CalendarOptions {
 
 const DEFAULT_PRODUCT_ID = "-//motorsport-schedule//EN";
 
+/** Enough of a session row to name the feed it came from. */
+export interface NamedSelection {
+  seriesCode: string;
+  seriesShortName: string;
+  categoryCode: string;
+  categoryShortName: string;
+}
+
+/**
+ * What the feed is called once it is in someone's calendar.
+ *
+ * Named from the rows, not from the tokens. Uppercasing the token called both
+ * `f1` and `f1.f1` "F1" - the whole Formula 1 weekend and Formula 1 on its
+ * own - so subscribing to both left two calendars with one name and no way to
+ * tell which was which. It also turned `nascar_cup` into "NASCAR_CUP".
+ *
+ * A code with no rows behind it keeps the old uppercase form: it is only
+ * reachable in a mixed selection, since a feed with nothing in it is a 404.
+ */
+export function calendarName(
+  seriesCodes: string[],
+  categoryCodes: string[],
+  rows: NamedSelection[],
+): string {
+  if (seriesCodes.length + categoryCodes.length === 0) return "Motorsport - all series";
+
+  const seriesNames = new Map(rows.map((row) => [row.seriesCode, row.seriesShortName]));
+  const categoryNames = new Map(rows.map((row) => [row.categoryCode, row.categoryShortName]));
+  const parts = [
+    ...seriesCodes.map((code) => seriesNames.get(code) ?? code.toUpperCase()),
+    ...categoryCodes.map((code) => categoryNames.get(code) ?? code.toUpperCase()),
+  ];
+
+  return `Motorsport - ${parts.join(", ")}`;
+}
+
 
 function stamp(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);

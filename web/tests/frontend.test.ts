@@ -28,7 +28,13 @@ import {
   splitByFinished,
 } from "../lib/time.ts";
 
-import { buildCalendar, escapeText, foldLine, parseSelection } from "../lib/ics.ts";
+import {
+  buildCalendar,
+  calendarName,
+  escapeText,
+  foldLine,
+  parseSelection,
+} from "../lib/ics.ts";
 
 // Melbourne, 8 March 2026, 15:00 AEDT (+11) = 04:00 UTC.
 const MELBOURNE_RACE = "2026-03-08T04:00:00Z";
@@ -470,5 +476,41 @@ describe("when a session ends", () => {
   test("a session with no end at all falls back by type", () => {
     const open = { startsAtUtc: "2026-03-01T08:00:00Z", endsAtUtc: null, sessionType: "practice" };
     assert.equal(sessionEnd(open).toISOString(), "2026-03-01T09:00:00.000Z"); // 60 minutes
+  });
+});
+
+describe("what the feed is called in a calendar app", () => {
+  const ROWS = [
+    { seriesCode: "f1", seriesShortName: "Formula 1", categoryCode: "f1", categoryShortName: "F1" },
+    { seriesCode: "f1", seriesShortName: "Formula 1", categoryCode: "f2", categoryShortName: "F2" },
+    {
+      seriesCode: "nascar",
+      seriesShortName: "NASCAR",
+      categoryCode: "nascar_cup",
+      categoryShortName: "Cup",
+    },
+  ];
+
+  test("a whole series and one class of it are not the same name", () => {
+    // Both used to be "Motorsport - F1", so someone subscribed to the Formula 1
+    // weekend and to F1 alone had two calendars with one name.
+    const wholeWeekend = calendarName(["f1"], [], ROWS);
+    const justF1 = calendarName([], ["f1"], ROWS);
+    assert.equal(wholeWeekend, "Motorsport - Formula 1");
+    assert.equal(justF1, "Motorsport - F1");
+    assert.notEqual(wholeWeekend, justF1);
+  });
+
+  test("a class is named, not spelled out in its database code", () => {
+    assert.equal(calendarName([], ["nascar_cup"], ROWS), "Motorsport - Cup");
+    assert.equal(calendarName([], ["f2"], ROWS), "Motorsport - F2");
+  });
+
+  test("everything is still everything", () => {
+    assert.equal(calendarName([], [], []), "Motorsport - all series");
+  });
+
+  test("a code with no rows behind it keeps its code", () => {
+    assert.equal(calendarName(["f1"], ["ghost"], ROWS), "Motorsport - Formula 1, GHOST");
   });
 });

@@ -13,18 +13,17 @@
 
 import { NextResponse } from "next/server";
 
-import { buildCalendar, parseSelection, type CalendarSession } from "../../../../lib/ics.ts";
+import {
+  buildCalendar,
+  calendarName,
+  parseSelection,
+  type CalendarSession,
+} from "../../../../lib/ics.ts";
 import { getCalendarSessions } from "../../../../lib/queries.ts";
 
 export const dynamic = "force-dynamic";
 
 const CACHE_SECONDS = 1800; // calendars move slowly; clients poll aggressively
-
-function calendarName(seriesCodes: string[], categoryCodes: string[]): string {
-  const parts = [...seriesCodes, ...categoryCodes];
-  if (parts.length === 0) return "Motorsport - all series";
-  return `Motorsport - ${parts.map((code) => code.toUpperCase()).join(", ")}`;
-}
 
 export async function GET(
   _request: Request,
@@ -84,7 +83,7 @@ export async function GET(
   }));
 
   const body = buildCalendar(sessions, {
-    calendarName: calendarName(seriesCodes, categoryCodes),
+    calendarName: calendarName(seriesCodes, categoryCodes, rows),
   });
 
   return new NextResponse(body, {

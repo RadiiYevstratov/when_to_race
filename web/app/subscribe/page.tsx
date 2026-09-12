@@ -6,10 +6,12 @@
  * so it leads.
  */
 
+import { accentBackground } from "../../lib/accent.ts";
 import { readPreferences } from "../../lib/preferences.ts";
 import { getSeriesCatalogue } from "../../lib/queries.ts";
-import { formatSelection, isEverything } from "../../lib/selection.ts";
+import { categoryToken, formatSelection, isEverything } from "../../lib/selection.ts";
 import { CopyableFeed } from "../../components/copyable-feed.tsx";
+import { FeedLinks } from "../../components/feed-links.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -63,29 +65,76 @@ export default async function SubscribePage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="eyebrow">One series at a time</h2>
+        <h2 className="eyebrow">One championship at a time</h2>
+        <p className="text-sm text-ink-muted">
+          A Formula 1 weekend also runs F2, F3 and F1 Academy, and a MotoGP weekend runs Moto2 and
+          Moto3. Each championship has its own feed, so you can take only the ones you watch - or
+          the whole weekend from the row above them.
+        </p>
         <ul className="border-t border-rule">
-          {allSeries.map((item) => (
-            <li key={item.code} className="flex items-center gap-3 border-b border-rule py-2.5">
-              <span
-                aria-hidden="true"
-                className="h-3.5 w-[3px] shrink-0"
-                style={{ backgroundColor: item.accentColor }}
-              />
-              <span className="flex-1 text-sm">{item.shortName}</span>
-              {item.lastSuccessfulScrape === null ? (
-                // Nothing scraped yet, so this feed would be an empty calendar.
-                <span className="font-mono text-xs text-ink-faint">Coming soon</span>
-              ) : (
-                <a
-                  href={`/api/calendar/${item.code}.ics`}
-                  className="font-mono text-xs text-ink-muted underline hover:text-ink"
-                >
-                  Download
-                </a>
-              )}
-            </li>
-          ))}
+          {allSeries.map((item) => {
+            // A class with no sessions would hand someone an empty calendar
+            // they then have to notice and remove.
+            const classes = item.categories.filter((category) => category.sessionCount > 0);
+            const ready = item.lastSuccessfulScrape !== null && classes.length > 0;
+
+            return (
+              <li key={item.code} className="border-b border-rule py-2.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span
+                    aria-hidden="true"
+                    className="h-3.5 w-[3px] shrink-0"
+                    style={{ backgroundColor: item.accentColor }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm">{item.shortName}</span>
+                  {!ready ? (
+                    // Nothing scraped yet, so this feed would be an empty calendar.
+                    <span className="font-mono text-xs text-ink-faint">Coming soon</span>
+                  ) : (
+                    <FeedLinks
+                      // The series token, not a list of today's classes: it
+                      // keeps meaning "everything here" when one is added.
+                      selection={item.code}
+                      label={
+                        classes.length > 1
+                          ? `every ${item.shortName} championship`
+                          : item.shortName
+                      }
+                    />
+                  )}
+                </div>
+
+                {ready && classes.length > 1 ? (
+                  <ul className="mt-2 space-y-2 pl-6">
+                    {classes.map((category) => (
+                      <li
+                        key={category.code}
+                        className="flex flex-wrap items-center gap-x-3 gap-y-1"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="h-3 w-[3px] shrink-0"
+                          style={{
+                            background: accentBackground(
+                              category.accentColor,
+                              category.accentColors,
+                            ),
+                          }}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-sm text-ink-muted">
+                          {category.shortName}
+                        </span>
+                        <FeedLinks
+                          selection={categoryToken(item.code, category.code)}
+                          label={category.shortName}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       </section>
 
