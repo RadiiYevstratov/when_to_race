@@ -1,0 +1,79 @@
+name: instagram
+
+# One post a day at noon in Bratislava.
+#
+# GitHub's cron is UTC only and has no notion of daylight saving, so the job
+# fires twice - 10:00 and 11:00 UTC - and `--check-hour` lets through only the
+# firing that is actually noon in Europe/Bratislava. In summer that is the first,
+# in winter the second, and nobody has to remember to edit a cron line in March.
+#
+# Everything about which post to make lives in social/policy.py. This file only
+# decides when the job runs and where its secrets come from.
+
+on:
+  schedule:
+    - cron: "0 10 * * *"   # noon in Bratislava while CEST is in force
+    - cron: "0 11 * * *"   # noon in Bratislava while CET is in force
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build the post but do not publish it"
+        type: boolean
+        default: true
+      force:
+        description: "Publish even if today already has a post"
+        type: boolean
+        default: false
+
+# Two runs must never overlap. The unique index on the day is the real guarantee,
+# but a queued second run is wasted minutes and a confusing log.
+concurrency:
+  group: instagram
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r social/requirements.txt
+
+      - name: Post
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          INSTAGRAM_TOKEN_ISSUED_AT: ${{ secrets.INSTAGRAM_TOKEN_ISSUED_AT }}
+          # Optional. Without it the caption is composed from the brief instead
+          # of written, which is plainer but never wrong.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://ontrackapp.me' }}
+        run: |
+          python -m social.run \
+            ${{ github.event_name == 'schedule' && '--check-hour' || '' }} \
+            ${{ inputs.dry_run == true && ' ' || '--publish' }} \
+            ${{ inputs.force == true && '--force' || '' }}
+
+      # Instagram keeps its own copy of every published image and nothing on the
+      # site links to an old card, so the bytes are dead weight after a couple of
+      # months. The publication record itself is never deleted.
+      - name: Drop cards nobody will ask for again
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m social.run --prune 60
+
+      # Printed at the end of every run so a token drifting towards expiry is
+      # visible in the log of a run that otherwise looks fine.
+      - name: Token and recent decisions
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+        run: python -m social.run --status

@@ -16,6 +16,31 @@ jobs:
       - name: Run scraper tests
         run: python -m unittest discover -s tests -t . -v
 
+  social:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The Instagram job is the one part of the Python side that needs an
+      # install: it draws a JPEG. Without Pillow those tests skip themselves,
+      # which is fine locally and not fine in CI - a skipped test proves nothing.
+      - run: pip install -r social/requirements.txt
+
+      - name: Run social tests
+        run: |
+          python -m unittest -v \
+            tests.test_social_selection \
+            tests.test_social_pipeline \
+            tests.test_social_instagram
+
+      # The card is drawn here, not just imported: a font that fails to load or
+      # an outline file that stops parsing should fail the build rather than the
+      # first post of the day.
+      - name: Draw a card
+        run: python -m social.cards --self-test
+
   web:
     runs-on: ubuntu-latest
     defaults:

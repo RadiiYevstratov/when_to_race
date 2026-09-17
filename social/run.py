@@ -1,29 +1,34 @@
-"""What would the account post, and when?
+"""The daily Instagram job, and the tools for looking at what it decides.
 
-    python -m social.run --date 2026-09-22      one day, explained
-    python -m social.run --replay 2026-09-17 2026-12-06
+    python -m social.run                        today: build everything, publish nothing
+    python -m social.run --publish              today: build everything and post it
+    python -m social.run --date 2026-09-22      explain one day's choice
+    python -m social.run --replay FROM TO       walk a date range, choosing as it goes
+    python -m social.run --status               recent decisions and token health
+    python -m social.run --prune                drop old card images
 
-Selection only. Nothing here draws an image, writes a caption or talks to
-Instagram - those arrive in later steps behind their own flags. The point of
-this stage is to see the cadence the policy produces across a real season before
-any of it is built, because a scoring rule that reads sensibly in isolation can
-still produce an account that posts four times in a week about one Grand Prix.
+Publishing is opt-in. Every other mode stops before Instagram, which means the
+whole pipeline - selection, card, caption, validation - can be exercised against
+the real calendar with no credentials and no risk of posting.
 
-Replay runs entirely in memory against the real calendar: it keeps its own
-history as it walks the days, so the novelty rules behave exactly as they would
-in production without writing a row.
+Replay runs entirely in memory: it keeps its own history as it walks the days,
+so the novelty rules behave exactly as in production without writing a row. It
+is how the cadence was tuned, and how a policy change is checked before it ships.
 """
 
 from __future__ import annotations
 
 import argparse
+import logging
+import os
 import sys
 from collections import Counter
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from . import policy
-from .repository import connect, load_events, load_history
+from . import instagram, policy
+from .pipeline import run as run_pipeline
+from .repository import connect, load_events, load_history, prune_media, recent
 from .selection import Candidate, Decision, PostRecord, decide
 
 # Windows consoles still default to a codepage that cannot hold an en dash, and
@@ -129,27 +134,170 @@ def replay(connection, start: date, end: date, timezone: str, verbose: bool) -> 
     print(f"average: {posts / weeks:.1f} posts per week")
 
 
+def show_run(result, day: date) -> None:
+    """Print what the run did, in the shape the brief asked for."""
+    print(f"\n=== {day:%A %d %B %Y} · {policy.POSTING_HOUR}:00 {policy.POSTING_TIMEZONE} ===")
+    print(f"  outcome: {result.outcome.upper()}")
+
+    if result.outcome == "skipped":
+        reason = result.decision.reason if result.decision else (result.error or "")
+        print(f"  no post today — {reason}")
+        if result.decision:
+            for candidate in result.decision.runners_up:
+                print(f"    considered: {_describe(candidate):<54} {candidate.score:>4}")
+        return
+
+    if result.outcome == "failed":
+        print(f"  error: {result.error}")
+        return
+
+    the_brief = result.brief
+    if the_brief is None:
+        return
+
+    print(f"  kind: {result.decision.chosen.kind}   score: {result.decision.chosen.score}")
+    print(f"  event: {the_brief.series} — {the_brief.event_name}")
+    if the_brief.headline:
+        h = the_brief.headline
+        print(f"  session: {h.category} {h.name}")
+        print(f"  when (reader): {h.viewer_weekday} {h.viewer_date_label}, {h.viewer_time} {h.viewer_zone_label}")
+        print(f"  when (circuit): {h.circuit_weekday} {h.circuit_date_label}, {h.circuit_time} local")
+    if the_brief.place:
+        print(f"  where: {the_brief.place}")
+
+    size = len(result.media_bytes or b"") / 1024
+    print(f"\n  media: {size:.0f} KB JPEG 1080x1350")
+    print(f"  url:   {result.media_url}")
+    print(f"  caption ({result.caption_source}):")
+    for line in (result.caption or "").splitlines():
+        print(f"    {line}")
+
+    print("\n  checks: event ✓  date ✓  time ✓  caption ✓  media ✓")
+    if result.instagram_post_id:
+        print(f"  published: {result.instagram_post_id}")
+    else:
+        print("  publishing: SKIPPED — dry run")
+
+
+def show_status(connection) -> None:
+    # Read the stored token rather than the environment: after the first run
+    # they differ, and the stored one is what tomorrow's post will use.
+    try:
+        creds = instagram.current(connection, refresh=False)
+        print("instagram:", instagram.token_health(creds))
+    except instagram.NotConfigured as error:
+        print(f"instagram: not configured - {error}")
+    print()
+    rows = recent(connection, 15)
+    if not rows:
+        print("no decisions recorded yet")
+        return
+    print(f"{'day':<12}{'outcome':<11}{'kind':<17}{'what':<40}{'post'}")
+    print("-" * 92)
+    for row in rows:
+        what = f"{row['series_code'] or ''} {row['event_name'] or ''}".strip() or (
+            (row["error_message"] or "")[:38]
+        )
+        print(
+            f"{str(row['decided_for']):<12}{row['outcome']:<11}"
+            f"{(row['post_kind'] or '—'):<17}{what[:38]:<40}"
+            f"{row['instagram_post_id'] or ''}"
+        )
+
+
+def within_posting_window(now: datetime, timezone: str) -> bool:
+    """Is it the posting hour where the audience is?
+
+    Cron on GitHub Actions is UTC only, so the workflow fires at both 10:00 and
+    11:00 UTC and this decides which of those is actually noon in Bratislava.
+    That is the whole daylight-saving story: one firing is right in summer, the
+    other in winter, and the job works out which rather than anyone editing a
+    cron line twice a year.
+
+    The test is the hour itself, not a window around noon. GitHub's scheduler is
+    best-effort and routinely runs a quarter of an hour late, which an hour-long
+    bucket absorbs; a window wide enough to absorb the same delay would be wide
+    enough to also admit the other firing, and then both would run.
+    """
+    return now.astimezone(ZoneInfo(timezone)).hour == policy.POSTING_HOUR
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m social.run", description=__doc__)
-    parser.add_argument("--date", help="explain one day (YYYY-MM-DD), default today")
+    parser.add_argument("--date", help="explain one day (YYYY-MM-DD)")
     parser.add_argument("--replay", nargs=2, metavar=("FROM", "TO"), help="walk a date range")
     parser.add_argument("--verbose", action="store_true", help="explain every day of a replay")
+    parser.add_argument("--publish", action="store_true", help="actually post to Instagram")
+    parser.add_argument("--status", action="store_true", help="recent decisions and token health")
+    parser.add_argument("--prune", type=int, nargs="?", const=60, metavar="DAYS",
+                        help="drop card images older than DAYS (default 60)")
+    parser.add_argument("--force", action="store_true",
+                        help="publish even if a post already went out today")
+    parser.add_argument("--now", help="pretend it is this instant (ISO 8601), for testing")
+    parser.add_argument("--check-hour", action="store_true",
+                        help="exit 0 without acting unless it is near noon in the posting zone")
     parser.add_argument("--timezone", default=policy.POSTING_TIMEZONE)
+    parser.add_argument("--site-url", default=os.environ.get("SITE_URL", "https://ontrackapp.me"))
+    parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args(argv)
 
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)-8s %(name)s %(message)s",
+    )
+
     with connect() as connection:
-        if args.replay:
-            start = date.fromisoformat(args.replay[0])
-            end = date.fromisoformat(args.replay[1])
-            replay(connection, start, end, args.timezone, args.verbose)
+        if args.status:
+            show_status(connection)
             return 0
 
-        day = date.fromisoformat(args.date) if args.date else date.today()
-        now = decision_time(day, args.timezone)
-        events = load_events(connection, now - timedelta(days=2), now + timedelta(days=20))
-        history = load_history(connection, now - timedelta(days=30))
-        explain(day, decide(events, history, now, args.timezone), args.timezone)
-    return 0
+        if args.prune is not None:
+            print(f"pruned {prune_media(connection, args.prune)} card image(s)")
+            return 0
+
+        if args.replay:
+            replay(
+                connection,
+                date.fromisoformat(args.replay[0]),
+                date.fromisoformat(args.replay[1]),
+                args.timezone,
+                args.verbose,
+            )
+            return 0
+
+        # --- explain one day, without building anything -------------------
+        if args.date and not args.publish:
+            day = date.fromisoformat(args.date)
+            now = decision_time(day, args.timezone)
+            events = load_events(connection, now - timedelta(days=2), now + timedelta(days=20))
+            history = load_history(connection, now - timedelta(days=30))
+            explain(day, decide(events, history, now, args.timezone), args.timezone)
+            return 0
+
+        # --- the daily run ------------------------------------------------
+        now = (
+            datetime.fromisoformat(args.now)
+            if args.now
+            else datetime.now(tz=ZoneInfo(args.timezone))
+        )
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=ZoneInfo(args.timezone))
+
+        if args.check_hour and not within_posting_window(now, args.timezone):
+            local = now.astimezone(ZoneInfo(args.timezone))
+            print(f"{local:%H:%M} {args.timezone} is not posting time; nothing to do")
+            return 0
+
+        result = run_pipeline(
+            connection,
+            now,
+            dry_run=not args.publish,
+            site_url=args.site_url,
+            timezone_name=args.timezone,
+            force=args.force,
+        )
+        show_run(result, now.astimezone(ZoneInfo(args.timezone)).date())
+        return 0 if result.ok else 1
 
 
 if __name__ == "__main__":

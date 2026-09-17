@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Optional, Sequence
 
 from .selection import EventFact, PostRecord, SessionFact
@@ -186,6 +186,156 @@ def record(
         new_id = cursor.fetchone()[0]
     connection.commit()
     return new_id
+
+
+def venue_slugs(connection, event_ids: Sequence[int]) -> dict[int, str]:
+    """The circuit slug for each event, so the card can draw its outline."""
+    if not event_ids:
+        return {}
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select e.id, v.slug from events e
+            join venues v on v.id = e.venue_id
+            where e.id = any(%s)
+            """,
+            (list(event_ids),),
+        )
+        return {row[0]: row[1] for row in cursor.fetchall()}
+
+
+def store_media(
+    connection,
+    record_id: int,
+    data: bytes,
+    media_type: str = "image/jpeg",
+    media_url: Optional[str] = None,
+) -> None:
+    """Attach the rendered card to its record.
+
+    The bytes go in the database because Instagram fetches media from a URL and
+    the site can serve it from here - no object store, no extra credential. The
+    URL is stored next to them so the row says where its own image was served
+    from, rather than leaving that to be reconstructed later.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            update social_posts
+               set media_bytes = %s, media_type = %s,
+                   media_url = coalesce(%s, media_url)
+             where id = %s
+            """,
+            (data, media_type, media_url, record_id),
+        )
+    connection.commit()
+
+
+def load_media(connection, record_id: int) -> Optional[tuple[bytes, str]]:
+    """The card for a record, for the route that serves it."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "select media_bytes, media_type from social_posts where id = %s", (record_id,)
+        )
+        row = cursor.fetchone()
+    if not row or row[0] is None:
+        return None
+    return bytes(row[0]), row[1]
+
+
+def recent(connection, limit: int = 20) -> list[dict]:
+    """The last few decisions, for the status command and the admin page."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select id, decided_for, decided_at, outcome, post_kind, series_code,
+                   event_name, score, instagram_post_id, error_message,
+                   media_bytes is not null as has_media
+            from social_posts
+            order by decided_at desc
+            limit %s
+            """,
+            (limit,),
+        )
+        columns = [c.name for c in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def prune_media(connection, days: int = 60) -> int:
+    """Drop the bytes of cards old enough that nothing will ask for them."""
+    with connection.cursor() as cursor:
+        cursor.execute("select prune_social_media(make_interval(days => %s))", (days,))
+        pruned = cursor.fetchone()[0]
+    connection.commit()
+    return pruned
+
+
+_ACCENT_SQL = """
+select coalesce(c.accent_color, s.accent_color)
+from series s
+left join categories c on c.series_id = s.id and c.code = %(category)s
+where s.code = %(series)s
+limit 1
+"""
+
+
+def accent_colour(
+    connection, series_code: str, category_code: Optional[str] = None
+) -> Optional[tuple[int, int, int]]:
+    """The colour this class is drawn in, resolved exactly as the site does it.
+
+    `coalesce(category, series)` is the same rule the board uses: a headline
+    class has no colour of its own because its series colour is already correct,
+    and a support class overrides it. Reading it from the database rather than
+    hard-coding a table here means a colour changed on the site changes on the
+    card too, without a second place to forget.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(_ACCENT_SQL, {"series": series_code, "category": category_code})
+        row = cursor.fetchone()
+
+    if not row or not row[0]:
+        return None
+    text = row[0].lstrip("#")
+    if len(text) != 6:
+        return None
+    try:
+        return (int(text[0:2], 16), int(text[2:4], 16), int(text[4:6], 16))
+    except ValueError:
+        return None
+
+
+def load_credential(connection, name: str) -> Optional[tuple[str, datetime]]:
+    """The stored secret and the moment it was issued, if there is one."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "select value, issued_at from social_credentials where name = %s", (name,)
+        )
+        row = cursor.fetchone()
+    return (row[0], row[1]) if row else None
+
+
+def store_credential(
+    connection, name: str, value: str, issued_at: Optional[datetime] = None
+) -> None:
+    """Write the current secret back.
+
+    Called after every refresh. The token Meta returns is a new string, and a
+    job that refreshes without saving has done nothing at all.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            insert into social_credentials (name, value, issued_at, updated_at)
+            values (%s, %s, coalesce(%s, now()), now())
+            on conflict (name) do update
+               set value = excluded.value,
+                   issued_at = excluded.issued_at,
+                   updated_at = now()
+            """,
+            (name, value, issued_at),
+        )
+    connection.commit()
 
 
 def already_published(connection, day: date) -> bool:

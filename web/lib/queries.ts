@@ -594,6 +594,78 @@ export async function getVenuesForCategory(code: string, season: number) {
     .orderBy(asc(events.startsAtUtc));
 }
 
+/**
+ * The rendered card for one social post.
+ *
+ * Instagram fetches post media from a public URL rather than accepting an
+ * upload, so the daily job stores the JPEG on the row and the site serves it.
+ * Only the bytes are exposed - the caption, score and reasoning stay private.
+ */
+export async function getSocialCard(id: number) {
+  const rows = await db.execute(
+    sql`select media_bytes, media_type from social_posts
+        where id = ${id} and media_bytes is not null limit 1`,
+  );
+  const row = (rows as unknown as Array<Record<string, unknown>>)[0];
+  if (!row || !row.media_bytes) return null;
+
+  const raw = row.media_bytes as Buffer | Uint8Array;
+  return {
+    bytes: raw instanceof Uint8Array ? raw : new Uint8Array(raw),
+    mediaType: (row.media_type as string) ?? "image/jpeg",
+  };
+}
+
+export type SocialPostRow = {
+  id: number;
+  decidedFor: string;
+  decidedAt: string;
+  outcome: string;
+  postKind: string | null;
+  seriesCode: string | null;
+  eventName: string | null;
+  sessionType: string | null;
+  score: number | null;
+  caption: string | null;
+  instagramPostId: string | null;
+  errorMessage: string | null;
+  hasMedia: boolean;
+};
+
+/**
+ * The Instagram job's recent decisions, for the admin page.
+ *
+ * Raw SQL rather than a Drizzle table: nothing in the web app writes to
+ * social_posts or joins it to anything, so a schema definition here would be a
+ * second place to keep the columns correct for no benefit.
+ */
+export async function getSocialPosts(limit = 30): Promise<SocialPostRow[]> {
+  const rows = await db.execute(
+    sql`select id, decided_for, decided_at, outcome, post_kind, series_code,
+               event_name, session_type, score, caption, instagram_post_id,
+               error_message, media_bytes is not null as has_media
+          from social_posts
+         order by decided_at desc
+         limit ${limit}`,
+  );
+
+  return (rows as unknown as Array<Record<string, unknown>>).map((row) => ({
+    id: Number(row.id),
+    decidedFor: String(row.decided_for),
+    decidedAt: String(row.decided_at),
+    outcome: String(row.outcome),
+    postKind: (row.post_kind as string) ?? null,
+    seriesCode: (row.series_code as string) ?? null,
+    eventName: (row.event_name as string) ?? null,
+    sessionType: (row.session_type as string) ?? null,
+    score: row.score === null || row.score === undefined ? null : Number(row.score),
+    caption: (row.caption as string) ?? null,
+    instagramPostId: (row.instagram_post_id as string) ?? null,
+    errorMessage: (row.error_message as string) ?? null,
+    hasMedia: Boolean(row.has_media),
+  }));
+}
+
 /** Every season that has published rounds, newest first. */
 export async function getPublishedSeasons(): Promise<number[]> {
   const rows = await db

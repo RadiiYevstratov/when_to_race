@@ -1,0 +1,15 @@
+# The social job's dependencies, on top of the scraper's.
+#
+# Kept separate because the scrape workflow runs every six hours and has no use
+# for an image library or a model SDK. Install this one only where posts are
+# made:  pip install -r social/requirements.txt
+
+-r ../requirements.txt
+
+Pillow==12.3.0      # draws the card
+anthropic==1.6.0    # writes the caption; optional at runtime
+
+# anthropic is optional in the sense that matters: with no ANTHROPIC_API_KEY,
+# or with the package absent, captions.generate() composes the caption from the
+# brief instead and the post still goes out. It is listed here because the
+# written captions are better, not because the job needs them.
