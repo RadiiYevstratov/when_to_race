@@ -68,13 +68,28 @@ class FakeStore:
 
 
 class EnvironmentTests(unittest.TestCase):
-    def test_a_missing_variable_is_named(self):
+    def test_a_missing_token_is_named(self):
         with mock.patch.dict("os.environ", {"INSTAGRAM_ACCESS_TOKEN": "",
                                             "INSTAGRAM_ACCOUNT_ID": ""}, clear=False):
             with self.assertRaises(instagram.NotConfigured) as caught:
                 instagram.credentials_from_env()
-        self.assertIn("INSTAGRAM_ACCESS_TOKEN", str(caught.exception))
-        self.assertIn("INSTAGRAM_ACCOUNT_ID", str(caught.exception))
+        message = str(caught.exception)
+        self.assertIn("INSTAGRAM_ACCESS_TOKEN", message)
+        # The permission names are in the message because they are the thing
+        # people get wrong: Meta renamed them for the Instagram Login API.
+        self.assertIn("instagram_business_content_publish", message)
+
+    def test_the_account_defaults_to_the_tokens_own_owner(self):
+        """On the Instagram Login path there is no id to look up: "me" is it."""
+        with mock.patch.dict("os.environ", {"INSTAGRAM_ACCESS_TOKEN": "t",
+                                            "INSTAGRAM_ACCOUNT_ID": ""}, clear=False):
+            self.assertEqual(instagram.credentials_from_env().account_id, "me")
+
+        with mock.patch.dict("os.environ", {"INSTAGRAM_ACCESS_TOKEN": "t",
+                                            "INSTAGRAM_ACCOUNT_ID": "17841400000000000"}):
+            self.assertEqual(
+                instagram.credentials_from_env().account_id, "17841400000000000"
+            )
 
     def test_an_unparseable_issue_date_does_not_stop_the_post(self):
         """A malformed date makes the age unknown, not the credentials invalid."""
@@ -217,13 +232,86 @@ class PublishingTests(unittest.TestCase):
         self.assertIn("could not fetch", str(caught.exception))
 
     def test_a_container_that_never_finishes_gives_up(self):
-        request = mock.Mock(side_effect=[{"id": "c"}] + [{"status_code": "IN_PROGRESS"}] * 20)
-        with mock.patch.object(instagram, "_request", request), \
-             mock.patch.object(instagram.time, "sleep"):
+        """Polling stops at Meta's five-minute ceiling rather than forever."""
+        def never_ready(*_args, **kwargs):
+            return {"id": "c"} if kwargs.get("data") else {"status_code": "IN_PROGRESS"}
+
+        # The clock is driven by the sleeps rather than left real: otherwise the
+        # deadline is honoured by spinning for five actual minutes.
+        slept: list[float] = []
+        clock = [0.0]
+
+        def sleep(seconds):
+            slept.append(seconds)
+            clock[0] += seconds
+
+        with mock.patch.object(instagram, "_request", side_effect=never_ready), \
+             mock.patch.object(instagram.time, "monotonic", lambda: clock[0]), \
+             mock.patch.object(instagram.time, "sleep", sleep):
             with self.assertRaises(instagram.InstagramError) as caught:
                 instagram.publish("https://example.test/c.jpg", "hello", CREDS)
 
-        self.assertIn("still not ready", str(caught.exception))
+        self.assertIn("IN_PROGRESS", str(caught.exception))
+        self.assertLessEqual(sum(slept), instagram.CONTAINER_DEADLINE)
+        # Quick at first, because a small JPEG is usually ready immediately,
+        # then backing off rather than making a hundred requests.
+        self.assertEqual(slept[0], instagram.CONTAINER_FIRST_DELAY)
+        self.assertEqual(max(slept), instagram.CONTAINER_MAX_DELAY)
+
+    def test_an_expired_container_says_so(self):
+        request = self.responses({"id": "c"}, {"status_code": "EXPIRED"})
+        with mock.patch.object(instagram, "_request", request):
+            with self.assertRaises(instagram.InstagramError) as caught:
+                instagram.publish("https://example.test/c.jpg", "hello", CREDS)
+        self.assertIn("expired", str(caught.exception))
+
+    def test_an_already_published_container_is_not_retried(self):
+        """PUBLISHED means the post exists. Failing here would invite a second."""
+        request = self.responses(
+            {"id": "c"}, {"status_code": "PUBLISHED"}, {"id": "17900000000000000"}
+        )
+        with mock.patch.object(instagram, "_request", request):
+            self.assertEqual(
+                instagram.publish("https://example.test/c.jpg", "hello", CREDS),
+                "17900000000000000",
+            )
+
+    def test_publishing_goes_to_the_instagram_login_host(self):
+        """graph.instagram.com, not graph.facebook.com.
+
+        The two Instagram publishing APIs take different tokens and different
+        permissions, and pointing an Instagram User token at the Facebook host
+        fails in a way that reads like a permissions problem.
+        """
+        request = self.responses(
+            {"id": "container-1"},
+            {"status_code": "FINISHED"},
+            {"id": "17900000000000000"},
+        )
+        with mock.patch.object(instagram, "_request", request):
+            instagram.publish("https://example.test/c.jpg", "hello", CREDS)
+
+        for call in request.call_args_list:
+            self.assertTrue(
+                call.args[1].startswith("https://graph.instagram.com/"), call.args[1]
+            )
+
+    def test_refreshing_always_uses_the_instagram_host(self):
+        """Refreshing exists only for the Instagram Login token."""
+        request = self.responses({"access_token": "new", "expires_in": 5183944})
+        with mock.patch.object(instagram, "_request", request):
+            token, expires = instagram.refresh_token(CREDS)
+
+        self.assertEqual(token, "new")
+        self.assertEqual(expires, 5183944)
+        self.assertEqual(
+            request.call_args.args[1], "https://graph.instagram.com/refresh_access_token"
+        )
+        # This one call keeps the token as a parameter: the endpoint identifies
+        # the token being renewed by it, and a bearer header does not.
+        self.assertEqual(
+            request.call_args.kwargs["params"]["grant_type"], "ig_refresh_token"
+        )
 
     def test_the_token_is_never_put_in_a_url(self):
         """Access tokens in query strings end up in logs, proxies and CI output.

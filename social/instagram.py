@@ -25,7 +25,27 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-GRAPH = "https://graph.facebook.com/v23.0"
+API_VERSION = "v26.0"
+
+# There are two Instagram publishing APIs and they are not interchangeable.
+#
+#   Instagram API with Instagram Login   graph.instagram.com, an Instagram User
+#                                        token, no Facebook Page needed
+#   Instagram API with Facebook Login    graph.facebook.com, a Facebook Page
+#                                        token, an IG account linked to a Page
+#
+# This project uses the first, because it needs no Facebook Page and because its
+# token refreshes itself - which is the only reason an unattended daily job is
+# possible at all. The host is overridable for anyone who has to use the other
+# one; the permission names and the token differ too, so it is not only a host.
+GRAPH = os.environ.get(
+    "INSTAGRAM_API_HOST", f"https://graph.instagram.com/{API_VERSION}"
+).rstrip("/")
+
+# Refreshing is Instagram-Login-only and always on graph.instagram.com, whatever
+# the host above says: there is no equivalent for a Page token, which is
+# long-lived by other means.
+REFRESH_HOST = "https://graph.instagram.com"
 
 # Meta's documented lifetime. Refresh well inside it: a token is refreshable
 # from 24 hours old, and leaving it to the last week means one failed run turns
@@ -34,11 +54,14 @@ TOKEN_LIFETIME = timedelta(days=60)
 REFRESH_AFTER = timedelta(days=30)
 WARN_AFTER = timedelta(days=45)
 
-# Instagram processes a container asynchronously; publishing before it is ready
-# fails. Poll rather than sleep a fixed amount - a card is small and usually
-# ready on the first check.
-CONTAINER_POLL_SECONDS = 3
-CONTAINER_ATTEMPTS = 12
+# Instagram fetches and processes the image asynchronously, and publishing an
+# unfinished container fails. Meta's guidance is to poll "once per minute, for
+# no more than 5 minutes", so the first checks are quick - an 80KB JPEG is
+# usually ready immediately - and the interval then backs off to a minute for
+# the long tail rather than making 100 requests.
+CONTAINER_FIRST_DELAY = 3
+CONTAINER_MAX_DELAY = 60
+CONTAINER_DEADLINE = 300
 
 REQUEST_TIMEOUT = 30
 
@@ -77,20 +100,19 @@ class Credentials:
 def credentials_from_env() -> Credentials:
     """Read the credentials, or say precisely which one is missing."""
     token = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "").strip()
-    account = os.environ.get("INSTAGRAM_ACCOUNT_ID", "").strip()
 
-    missing = [
-        name
-        for name, value in (
-            ("INSTAGRAM_ACCESS_TOKEN", token),
-            ("INSTAGRAM_ACCOUNT_ID", account),
-        )
-        if not value
-    ]
-    if missing:
+    # The account is the token's own owner unless told otherwise. On the
+    # Instagram Login path "me" resolves to exactly that, so there is nothing to
+    # look up; the explicit id is there for the Facebook Login path, where the
+    # token belongs to a Page and the target has to be named.
+    account = os.environ.get("INSTAGRAM_ACCOUNT_ID", "").strip() or "me"
+
+    if not token:
         raise NotConfigured(
-            f"{' and '.join(missing)} not set. Everything up to publishing still runs; "
-            "see docs/instagram.md for the one-time Meta setup."
+            "INSTAGRAM_ACCESS_TOKEN not set. Everything up to publishing still "
+            "runs; see docs/instagram.md for the one-time Meta setup "
+            "(permissions: instagram_business_basic, "
+            "instagram_business_content_publish)."
         )
 
     issued_raw = os.environ.get("INSTAGRAM_TOKEN_ISSUED_AT", "").strip()
@@ -192,10 +214,15 @@ def _await_container(container_id: str, creds: Credentials) -> None:
     """Wait for Instagram to finish fetching and checking the image.
 
     Publishing an unfinished container fails, and the error does not say why.
-    An ERROR status here usually means Instagram could not fetch the URL, which
-    is worth saying plainly because it is the most likely thing to break.
+    ERROR almost always means Instagram could not fetch the image URL, which is
+    worth saying in those words because it is the most likely thing to break in
+    production - a mid-deploy site, or a route that stopped being public.
     """
-    for attempt in range(CONTAINER_ATTEMPTS):
+    deadline = time.monotonic() + CONTAINER_DEADLINE
+    delay = CONTAINER_FIRST_DELAY
+    last = "unknown"
+
+    while True:
         status = _request(
             "GET",
             f"{GRAPH}/{container_id}",
@@ -203,20 +230,31 @@ def _await_container(container_id: str, creds: Credentials) -> None:
             params={"fields": "status_code,status"},
         )
         code = status.get("status_code")
-        if code == "FINISHED":
+        last = code or last
+
+        # PUBLISHED means something already published this container. Treating
+        # it as success rather than an error is deliberate: the post exists, and
+        # failing here would invite a retry that made a second one.
+        if code in ("FINISHED", "PUBLISHED"):
             return
         if code == "ERROR":
             raise InstagramError(
                 f"Instagram could not process the media: {status.get('status')}. "
                 "The usual cause is an image URL it could not fetch."
             )
-        if attempt < CONTAINER_ATTEMPTS - 1:
-            time.sleep(CONTAINER_POLL_SECONDS)
+        if code == "EXPIRED":
+            raise InstagramError(
+                f"media container {container_id} expired before it was published"
+            )
 
-    raise InstagramError(
-        f"media container {container_id} was still not ready after "
-        f"{CONTAINER_ATTEMPTS * CONTAINER_POLL_SECONDS}s"
-    )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise InstagramError(
+                f"media container {container_id} was still {last} after "
+                f"{CONTAINER_DEADLINE}s"
+            )
+        time.sleep(min(delay, remaining))
+        delay = min(delay * 2, CONTAINER_MAX_DELAY)
 
 
 TOKEN_NAME = "instagram_access_token"
@@ -319,12 +357,14 @@ def refresh_token(credentials: Optional[Credentials] = None) -> tuple[str, int]:
     and this function cannot do that. The caller reports it.
     """
     creds = credentials or credentials_from_env()
-    # The one call that must keep the token in the query string: the refresh
-    # endpoint identifies the token being renewed by this parameter, and a
-    # bearer header does not stand in for it.
+    # Two things here are not like the other calls. The host is always
+    # graph.instagram.com, because refreshing exists only for the Instagram
+    # Login token. And the token stays in the query string, because this
+    # endpoint identifies the token being renewed by that parameter - a bearer
+    # header does not stand in for it.
     payload = _request(
         "GET",
-        f"{GRAPH}/refresh_access_token",
+        f"{REFRESH_HOST}/refresh_access_token",
         creds.access_token,
         params={"grant_type": "ig_refresh_token", "access_token": creds.access_token},
     )

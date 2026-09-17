@@ -33,7 +33,7 @@ decide -> brief -> card -> caption -> validate -> store -> publish -> record
 | card | `social/cards.py` | 1080×1350 JPEG, drawn from the circuit outline |
 | caption | `social/captions.py` | Written by Claude from the brief, or composed if that fails |
 | validate | `social/captions.py` | Rejects any time, weekday, year or result not in the brief |
-| publish | `social/instagram.py` | Two Graph API calls, plus the token's own upkeep |
+| publish | `social/instagram.py` | Two calls to `graph.instagram.com`, plus the token's own upkeep |
 | record | `social/repository.py` | Every outcome, including the quiet days |
 
 ### Why the caption is checked rather than trusted
@@ -97,8 +97,9 @@ Every mode except `--publish` stops before Instagram.
 |---|---|---|
 | `DATABASE_URL` | everything | The same database the scrapers write to |
 | `INSTAGRAM_ACCESS_TOKEN` | publishing | Seed only; see "The token" below |
-| `INSTAGRAM_ACCOUNT_ID` | publishing | The Instagram **Business** account id, not the page id |
 | `INSTAGRAM_TOKEN_ISSUED_AT` | optional | ISO date. Lets a hand-made token override the stored one |
+| `INSTAGRAM_ACCOUNT_ID` | optional | Defaults to `me`, the token's own owner. Only needed on the Facebook Login path |
+| `INSTAGRAM_API_HOST` | optional | Only for the Facebook Login path: `https://graph.facebook.com/v26.0` |
 | `ANTHROPIC_API_KEY` | optional | Without it, captions are composed rather than written |
 | `SITE_URL` | optional | Defaults to `https://ontrackapp.me` |
 
@@ -173,24 +174,56 @@ so in those words.
 
 ---
 
+## Which of the two Instagram APIs this uses
+
+Meta has two, they are not interchangeable, and picking the wrong one fails in a
+way that reads like a permissions problem.
+
+| | **Instagram API with Instagram Login** ← this project | Instagram API with Facebook Login |
+|---|---|---|
+| Facebook Page | **not needed** | required, linked to the IG account |
+| Host | `graph.instagram.com` | `graph.facebook.com` |
+| Token | Instagram User access token | Facebook Page access token |
+| Permissions | `instagram_business_basic`, `instagram_business_content_publish` | `instagram_basic`, `instagram_content_publish`, `pages_read_engagement` |
+| Self-refreshing | **yes**, `ig_refresh_token` | no equivalent |
+
+We use Instagram Login for two reasons: it needs no Facebook Page, and its token
+refreshes itself — which is the only reason a job nobody watches can keep
+working past 60 days. `INSTAGRAM_API_HOST` exists for anyone who has to use the
+other one, but the token and permissions differ too, so it is not only a host.
+
 ## What is left: connecting the account
 
 This needs the Instagram account holder and a browser. It is done once.
+Meta's own walkthrough is
+[Create a Meta app for the Instagram API](https://developers.facebook.com/docs/instagram-platform/create-an-instagram-app).
 
-1. **Make the Instagram account a Business or Creator account** and link it to a
-   Facebook Page. Personal accounts cannot publish through the API at all.
-2. **Create an app** at developers.facebook.com - type *Business* - and add the
-   **Instagram Graph API** product.
-3. **Generate a long-lived access token** for the account with the
-   `instagram_basic`, `instagram_content_publish` and `pages_show_list`
-   permissions. Standard Access is enough for posting to your own account, so
-   **no App Review is required**.
-4. **Find the Instagram Business account id** - `GET /me/accounts` then
-   `GET /<page-id>?fields=instagram_business_account`. It is a 17-digit number
-   and is *not* the page id.
-5. **Add the repository secrets**: `INSTAGRAM_ACCESS_TOKEN`,
-   `INSTAGRAM_ACCOUNT_ID`, and `INSTAGRAM_TOKEN_ISSUED_AT` set to today's date.
-6. **Run the workflow by hand** with *dry run* left ticked, and read the log.
+1. **Make the Instagram account a Business or Creator account.** Personal
+   accounts cannot publish through the API at all. It must also be **public** —
+   a private account cannot be added as a tester in step 4.
+2. **Create an app** at developers.facebook.com. When it asks for a use case,
+   choose **Other**, then app type **Business**. This is counter-intuitive:
+   there is a tile called *"Manage messaging & content on Instagram"* whose
+   description matches this project exactly, but Meta's documented route to the
+   product we need is Other → Business.
+3. **Add the *Instagram* product** from the dashboard and click *Set up*. There
+   is no longer a product called "Instagram Graph API" — it is just
+   **Instagram**, and it covers both APIs above. *API setup with Instagram
+   login* is added automatically, which is the one we want.
+4. **Add the Instagram account under *API setup with Instagram login*.** This is
+   what grants **Standard Access**, and Standard Access is enough to publish to
+   an account you own — so **no App Review is needed**. The dashboard does show
+   a "Complete App Review" step; that is for Advanced Access, i.e. posting on
+   behalf of accounts you do not own.
+5. **Generate a long-lived token** with `instagram_business_basic` and
+   `instagram_business_content_publish`. The dashboard can generate one
+   directly; the full OAuth flow in
+   [Business Login for Instagram](https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-login)
+   is only needed for other people's accounts.
+6. **Add the repository secrets**: `INSTAGRAM_ACCESS_TOKEN` and
+   `INSTAGRAM_TOKEN_ISSUED_AT` set to today's date. `INSTAGRAM_ACCOUNT_ID` is
+   not needed — the job posts as the token's own owner.
+7. **Run the workflow by hand** with *dry run* left ticked, and read the log.
    Then run it again with dry run unticked.
 
 After that, nothing further is needed. The token renews itself.
@@ -203,3 +236,9 @@ After that, nothing further is needed. The token renews itself.
   before anything is sent.
 - No native scheduling through the API. "Scheduled" means the job runs at noon.
 - Captions: 2200 characters, 30 hashtags. Posts here use seven.
+- A container must be published within 24 hours or it expires. This job
+  publishes within seconds.
+- Meta has an `is_ai_generated` flag for self-disclosing AI-generated **media**.
+  We do not set it: the card is a deterministic drawing, not generated imagery.
+  The caption is model-written, which that flag is not about. If a future post
+  ever carries a generated image, it must be set.
