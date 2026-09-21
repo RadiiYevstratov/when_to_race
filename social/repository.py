@@ -118,18 +118,21 @@ def load_events(connection, window_from: datetime, window_to: datetime) -> list[
 
 
 def load_history(connection, since: datetime) -> list[PostRecord]:
-    """Recent decisions, for the rules that stop the account repeating itself.
+    """What the account has actually said, for the rules against repeating it.
 
-    Skipped days are excluded: staying quiet about an event is not the same as
-    having covered it, and counting it would suppress the post it was waiting
-    for.
+    Published posts only. A skipped day is not coverage, and neither is a dry
+    run: nobody saw it. Counting dry runs mattered in the other direction once
+    the job was deployed ahead of the token - it ran every noon, recorded a dry
+    run each time, and would have gone live believing it had already talked
+    about the weekends it had only rehearsed, and stayed quiet about them.
+    `--replay` keeps its own history in memory, so tuning is unaffected.
     """
     with connection.cursor() as cursor:
         cursor.execute(
             """
             select decided_at, event_id, session_id, series_code, post_kind
             from social_posts
-            where decided_at >= %s and outcome in ('published', 'dry_run')
+            where decided_at >= %s and outcome = 'published'
             order by decided_at
             """,
             (since,),
