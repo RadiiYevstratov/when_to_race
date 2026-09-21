@@ -14,6 +14,12 @@ from unittest import mock
 
 from social import instagram
 
+try:
+    import httpx  # noqa: F401 - only probed
+    HAS_HTTPX = True
+except ImportError:  # the stdlib-only CI job installs nothing
+    HAS_HTTPX = False
+
 
 def setUpModule():
     import logging
@@ -338,6 +344,7 @@ class PublishingTests(unittest.TestCase):
             self.assertNotIn("access_token", params)
             self.assertNotIn("access_token", data)
 
+    @unittest.skipUnless(HAS_HTTPX, "exercises the real client (pip install -r social/requirements.txt)")
     def test_an_error_carrying_the_token_is_redacted(self):
         """Meta occasionally echoes the request back inside the error message."""
         import httpx
