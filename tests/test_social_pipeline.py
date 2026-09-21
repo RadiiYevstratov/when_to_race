@@ -505,6 +505,78 @@ class PostingWindowTests(unittest.TestCase):
         self.assertTrue(within_posting_window(late, "Europe/Bratislava"))
 
 
+@unittest.skipUnless(HAS_PILLOW, "the CLI imports the renderer")
+class StatusTests(unittest.TestCase):
+    """--status is the alert: its exit code is what makes GitHub send an email."""
+
+    def status(self, creds=None, not_configured=False, whoami=None, whoami_error=None):
+        import io
+        from contextlib import ExitStack, redirect_stdout
+
+        from social import run
+
+        with ExitStack() as stack:
+            if not_configured:
+                current = mock.Mock(side_effect=pipeline.instagram.NotConfigured("no token"))
+            else:
+                current = mock.Mock(return_value=creds)
+            stack.enter_context(mock.patch.object(run.instagram, "current", current))
+            stack.enter_context(mock.patch.object(
+                run.instagram, "whoami",
+                mock.Mock(side_effect=whoami_error, return_value=whoami),
+            ))
+            stack.enter_context(mock.patch.object(run, "recent", return_value=[]))
+            out = io.StringIO()
+            with redirect_stdout(out):
+                healthy = run.show_status(object())
+        return healthy, out.getvalue()
+
+    def fresh(self):
+        return pipeline.instagram.Credentials(
+            "t", "me", datetime.now(timezone.utc) - timedelta(days=2)
+        )
+
+    def test_not_yet_configured_is_not_an_alert(self):
+        """Before setup, a red run every day would teach everyone to ignore it."""
+        healthy, out = self.status(not_configured=True)
+        self.assertTrue(healthy)
+        self.assertIn("not configured", out)
+
+    def test_a_working_token_names_the_account(self):
+        healthy, out = self.status(
+            creds=self.fresh(),
+            whoami={"user_id": "178", "username": "ontrackapp", "account_type": "BUSINESS"},
+        )
+        self.assertTrue(healthy)
+        self.assertIn("@ontrackapp", out)
+
+    def test_a_rejected_token_fails_the_run(self):
+        healthy, out = self.status(
+            creds=self.fresh(),
+            whoami_error=pipeline.instagram.InstagramError("OAuthException: expired"),
+        )
+        self.assertFalse(healthy)
+        self.assertIn("TOKEN REJECTED", out)
+
+    def test_a_token_near_expiry_fails_the_run(self):
+        """At 45 days, refreshes have been failing for two weeks. Someone must know."""
+        old = pipeline.instagram.Credentials(
+            "t", "me", datetime.now(timezone.utc) - timedelta(days=50)
+        )
+        healthy, _ = self.status(
+            creds=old,
+            whoami={"user_id": "178", "username": "ontrackapp", "account_type": "BUSINESS"},
+        )
+        self.assertFalse(healthy)
+
+    def test_a_personal_account_is_called_out(self):
+        _, out = self.status(
+            creds=self.fresh(),
+            whoami={"user_id": "178", "username": "someone", "account_type": "PERSONAL"},
+        )
+        self.assertIn("only Business and Creator accounts can publish", out)
+
+
 class CaptionValidationTests(unittest.TestCase):
     """The check that makes a language model safe to have in this loop."""
 

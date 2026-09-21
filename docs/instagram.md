@@ -155,6 +155,12 @@ Three layers, in order of how much you would have to break to get past them:
 
 ## Where to look when something is wrong
 
+**GitHub emails you when it needs a person.** The status step at the end of
+every run fails - and a failed scheduled run is something GitHub emails the repo
+owner about - when Meta rejects the token, or when the token is within two weeks
+of expiry because refreshes have kept failing. Not being configured yet is not a
+failure, so nothing goes red before setup.
+
 `python -m social.run --status`, or `/admin/social` on the site. Every run writes
 a row whatever happened - published, dry run, quiet day or failure - so the log
 answers "what did it do on the 4th?" rather than only "what did it post?".
@@ -223,8 +229,18 @@ Meta's own walkthrough is
 6. **Add the repository secrets**: `INSTAGRAM_ACCESS_TOKEN` and
    `INSTAGRAM_TOKEN_ISSUED_AT` set to today's date. `INSTAGRAM_ACCOUNT_ID` is
    not needed — the job posts as the token's own owner.
-7. **Run the workflow by hand** with *dry run* left ticked, and read the log.
-   Then run it again with dry run unticked.
+7. **Run the workflow by hand** — Actions → *instagram* → *Run workflow*, with
+   *dry run* left ticked. Nothing is posted. In the last step, *Token and recent
+   decisions*, look for:
+
+   ```
+   account:   @your_username (BUSINESS), id 1784...
+   ```
+
+   That line comes from Meta itself, so it proves the token is valid, belongs
+   to the right account, and that the account can publish. `TOKEN REJECTED`
+   there means the token is wrong or expired; the step fails and says why.
+8. Nothing else. The next noon run publishes.
 
 After that, nothing further is needed. The token renews itself.
 

@@ -374,6 +374,33 @@ def refresh_token(credentials: Optional[Credentials] = None) -> tuple[str, int]:
     return token, int(payload.get("expires_in", 0))
 
 
+def whoami(credentials: Optional[Credentials] = None) -> dict:
+    """Which account the token belongs to - the one Meta call that cannot post.
+
+    Without it, the only way to learn whether a token works is to publish with
+    it. This is the check the status command runs, so a manual dry run from the
+    Actions tab proves the whole setup - token valid, right account, professional
+    type - before anything goes out.
+
+    Meta documents the response wrapped in `data` and returns it flat in
+    practice; both are accepted.
+    """
+    creds = credentials or credentials_from_env()
+    payload = _request(
+        "GET",
+        f"{GRAPH}/me",
+        creds.access_token,
+        params={"fields": "user_id,username,account_type"},
+    )
+    if isinstance(payload.get("data"), list) and payload["data"]:
+        payload = payload["data"][0]
+    return {
+        "user_id": payload.get("user_id") or payload.get("id"),
+        "username": payload.get("username"),
+        "account_type": payload.get("account_type"),
+    }
+
+
 def publishing_limit(credentials: Optional[Credentials] = None) -> Optional[int]:
     """How many posts have gone out in the last 24 hours.
 

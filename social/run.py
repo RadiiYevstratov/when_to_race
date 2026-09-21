@@ -179,19 +179,46 @@ def show_run(result, day: date) -> None:
         print("  publishing: SKIPPED — dry run")
 
 
-def show_status(connection) -> None:
+def show_status(connection) -> bool:
+    """Print the token's health and the recent decisions. False if it needs a human.
+
+    The return value is what turns this into an alert. The workflow runs it after
+    every post, and a failed scheduled run is something GitHub emails the owner
+    about - so a token Meta rejects, or one within two weeks of expiring because
+    refreshes keep failing, becomes an email rather than an account that quietly
+    stopped posting. Not being configured yet is the expected state before setup,
+    so that is not a failure.
+    """
+    healthy = True
+
     # Read the stored token rather than the environment: after the first run
     # they differ, and the stored one is what tomorrow's post will use.
     try:
         creds = instagram.current(connection, refresh=False)
         print("instagram:", instagram.token_health(creds))
+        if creds.is_stale:
+            healthy = False
     except instagram.NotConfigured as error:
         print(f"instagram: not configured - {error}")
+    else:
+        # Ask Meta who the token belongs to. It is the only way to prove the
+        # setup works short of posting, and it catches the mistakes that matter:
+        # an expired token, the wrong account, a personal rather than a
+        # professional one.
+        try:
+            me = instagram.whoami(creds)
+            kind = (me.get("account_type") or "").upper()
+            print(f"account:   @{me.get('username')} ({kind or 'type unknown'}), id {me.get('user_id')}")
+            if kind and kind not in ("BUSINESS", "MEDIA_CREATOR"):
+                print("           WARNING: only Business and Creator accounts can publish")
+        except instagram.InstagramError as error:
+            print(f"account:   TOKEN REJECTED - {error}")
+            healthy = False
     print()
     rows = recent(connection, 15)
     if not rows:
         print("no decisions recorded yet")
-        return
+        return healthy
     print(f"{'day':<12}{'outcome':<11}{'kind':<17}{'what':<40}{'post'}")
     print("-" * 92)
     for row in rows:
@@ -203,6 +230,7 @@ def show_status(connection) -> None:
             f"{(row['post_kind'] or '—'):<17}{what[:38]:<40}"
             f"{row['instagram_post_id'] or ''}"
         )
+    return healthy
 
 
 def within_posting_window(now: datetime, timezone: str) -> bool:
@@ -248,8 +276,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with connect() as connection:
         if args.status:
-            show_status(connection)
-            return 0
+            return 0 if show_status(connection) else 1
 
         if args.prune is not None:
             print(f"pruned {prune_media(connection, args.prune)} card image(s)")

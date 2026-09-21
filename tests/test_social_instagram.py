@@ -282,6 +282,33 @@ class PublishingTests(unittest.TestCase):
                 "17900000000000000",
             )
 
+    def test_whoami_reads_the_account_without_posting(self):
+        """The setup check: one GET to /me, and nothing that could publish."""
+        request = self.responses(
+            {"user_id": "17841400000000000", "username": "ontrackapp",
+             "account_type": "BUSINESS"}
+        )
+        with mock.patch.object(instagram, "_request", request):
+            me = instagram.whoami(CREDS)
+
+        self.assertEqual(me["username"], "ontrackapp")
+        self.assertEqual(me["account_type"], "BUSINESS")
+        self.assertEqual(request.call_count, 1)
+        method, url = request.call_args.args[:2]
+        self.assertEqual(method, "GET")
+        self.assertEqual(url, "https://graph.instagram.com/v26.0/me")
+
+    def test_whoami_accepts_the_documented_envelope(self):
+        """Meta's docs show /me wrapped in `data`; the API returns it flat."""
+        request = self.responses(
+            {"data": [{"user_id": "178", "username": "ontrackapp",
+                       "account_type": "MEDIA_CREATOR"}]}
+        )
+        with mock.patch.object(instagram, "_request", request):
+            me = instagram.whoami(CREDS)
+        self.assertEqual(me["user_id"], "178")
+        self.assertEqual(me["account_type"], "MEDIA_CREATOR")
+
     def test_publishing_goes_to_the_instagram_login_host(self):
         """graph.instagram.com, not graph.facebook.com.
 
