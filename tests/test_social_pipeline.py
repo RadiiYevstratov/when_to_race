@@ -470,39 +470,81 @@ class PipelineTests(unittest.TestCase):
 
 @unittest.skipUnless(HAS_PILLOW, "the CLI imports the renderer")
 class PostingWindowTests(unittest.TestCase):
-    """Which of the two daily cron firings is allowed to act.
+    """When a scheduled firing is allowed to act, and how often.
 
-    GitHub's cron is UTC and knows nothing about daylight saving, so the
-    workflow fires at 10:00 and 11:00 UTC every day and the job decides. Getting
-    this wrong is either two posts a day or none, and it only shows up twice a
-    year, on the Sunday the clocks change.
+    The first version let through only the noon hour, on the assumption that
+    GitHub runs cron on time. This repository's scheduled jobs start one to
+    three hours late, so that gate would have turned away every firing and the
+    account would never have posted. Found by the setup check on the first day.
     """
 
-    def check(self, utc_hour, month, day):
+    def check(self, utc_hour, month, day, minute=0):
         from social.run import within_posting_window
 
-        when = datetime(2026, month, day, utc_hour, tzinfo=timezone.utc)
+        when = datetime(2026, month, day, utc_hour, minute, tzinfo=timezone.utc)
         return within_posting_window(when, "Europe/Bratislava")
 
-    def test_summer_time_lets_the_ten_oclock_firing_through(self):
-        self.assertTrue(self.check(10, 7, 1))     # 12:00 CEST
-        self.assertFalse(self.check(11, 7, 1))    # 13:00 CEST
+    def test_a_firing_two_hours_late_still_posts(self):
+        """The case that actually happens: 10:00 UTC scheduled, 11:58 started."""
+        self.assertTrue(self.check(11, 9, 21, minute=58))   # 13:58 CEST
 
-    def test_winter_time_lets_the_eleven_oclock_firing_through(self):
-        self.assertFalse(self.check(10, 1, 15))   # 11:00 CET
-        self.assertTrue(self.check(11, 1, 15))    # 12:00 CET
+    def test_nothing_goes_out_before_noon(self):
+        self.assertFalse(self.check(9, 7, 1, minute=59))    # 11:59 CEST
+        self.assertFalse(self.check(10, 1, 15))             # 11:00 CET
 
-    def test_the_switchover_weekend_still_posts_exactly_once(self):
-        """The last Sunday of October, when the clocks go back at 03:00."""
-        allowed = [h for h in (10, 11) if self.check(h, 10, 25)]
-        self.assertEqual(len(allowed), 1, "one firing acts, whichever it is")
+    def test_nor_too_late_in_the_day(self):
+        """A "today" post at eight in the evening is not worth making."""
+        self.assertTrue(self.check(15, 7, 1, minute=59))    # 17:59 CEST
+        self.assertFalse(self.check(16, 7, 1))              # 18:00 CEST
 
-    def test_a_late_runner_is_still_inside_the_hour(self):
-        """GitHub routinely starts a scheduled job a quarter of an hour late."""
-        from social.run import within_posting_window
+    def test_both_seasons_get_a_firing_inside_the_window(self):
+        """Daylight saving needs no special case, only enough firings."""
+        for month, day in ((7, 1), (1, 15), (10, 25)):
+            allowed = [h for h in (10, 11, 12, 13) if self.check(h, month, day)]
+            self.assertGreaterEqual(len(allowed), 3, (month, day))
 
-        late = datetime(2026, 7, 1, 10, 47, tzinfo=timezone.utc)   # 12:47 CEST
-        self.assertTrue(within_posting_window(late, "Europe/Bratislava"))
+
+@unittest.skipUnless(HAS_PILLOW, "the CLI imports the renderer")
+class OncePerDayTests(unittest.TestCase):
+    """Four firings a day must still mean one decision a day."""
+
+    def run_cli(self, settled=None, now="2026-09-21T13:58:00+02:00", force=False):
+        import io
+        from contextlib import ExitStack, redirect_stdout
+
+        from social import run
+
+        pipeline_run = mock.Mock()
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch.object(run, "connect", mock.MagicMock()))
+            stack.enter_context(mock.patch.object(run, "decided_today", return_value=settled))
+            stack.enter_context(mock.patch.object(run, "run_pipeline", pipeline_run))
+            stack.enter_context(mock.patch.object(run, "show_run"))
+            stack.enter_context(mock.patch("logging.basicConfig"))
+            argv = ["--check-hour", "--publish", "--now", now] + (["--force"] if force else [])
+            with redirect_stdout(io.StringIO()) as out:
+                code = run.main(argv)
+        return code, pipeline_run, out.getvalue()
+
+    def test_the_first_firing_in_the_window_decides(self):
+        _, pipeline_run, _ = self.run_cli(settled=None)
+        pipeline_run.assert_called_once()
+
+    def test_a_later_firing_leaves_a_published_day_alone(self):
+        code, pipeline_run, out = self.run_cli(settled="published")
+        self.assertEqual(code, 0)
+        pipeline_run.assert_not_called()
+        self.assertIn("already settled", out)
+
+    def test_a_decision_to_stay_quiet_is_respected_too(self):
+        """Otherwise every later firing would re-ask and might change its mind."""
+        _, pipeline_run, _ = self.run_cli(settled="skipped")
+        pipeline_run.assert_not_called()
+
+    def test_a_firing_outside_the_window_does_nothing(self):
+        _, pipeline_run, out = self.run_cli(now="2026-09-21T11:30:00+02:00")
+        pipeline_run.assert_not_called()
+        self.assertIn("outside the posting window", out)
 
 
 @unittest.skipUnless(HAS_PILLOW, "the CLI imports the renderer")
@@ -667,3 +709,41 @@ class CaptionValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WeekAheadValidationTests(unittest.TestCase):
+    """The week-ahead post names days, and the validator has to know them.
+
+    Found on the first real run: the model expanded "Thu" in the fact sheet to
+    "Thursday" - true - and the validator, which only knew the weekdays of
+    session lines, rejected the caption. A correct caption was thrown away for
+    a plainer one.
+    """
+
+    def week_ahead(self):
+        from social.selection import Candidate
+
+        events = [
+            event(eid=1, name="Azerbaijan Grand Prix",
+                  sessions=[session(1, "race", "Race", utc(2026, 9, 24, 11))]),
+            event(eid=2, series="wec", short="WEC", name="6 Hours of Fuji",
+                  zone="Asia/Tokyo",
+                  sessions=[session(2, "race", "Race", utc(2026, 9, 25, 2),
+                                    category="wec", short="WEC")]),
+        ]
+        candidate = Candidate("week_ahead", tuple(events), None, 0)
+        return brief_module.build(candidate, noon(2026, 9, 21))
+
+    def test_the_days_in_the_list_are_allowed(self):
+        brief = self.week_ahead()
+        self.assertIn("Thursday", brief.allowed_weekdays)
+        self.assertIn("Friday", brief.allowed_weekdays)
+        captions.validate(
+            "A busy week: Formula 1 is in Baku on Thursday, and the WEC runs "
+            "the 6 Hours of Fuji on Friday.",
+            brief,
+        )
+
+    def test_a_day_not_in_the_list_is_still_refused(self):
+        with self.assertRaises(captions.ValidationError):
+            captions.validate("Formula 1 races on Sunday in Baku.", self.week_ahead())

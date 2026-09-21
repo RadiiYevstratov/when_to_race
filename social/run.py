@@ -28,7 +28,14 @@ from zoneinfo import ZoneInfo
 
 from . import instagram, policy
 from .pipeline import run as run_pipeline
-from .repository import connect, load_events, load_history, prune_media, recent
+from .repository import (
+    connect,
+    decided_today,
+    load_events,
+    load_history,
+    prune_media,
+    recent,
+)
 from .selection import Candidate, Decision, PostRecord, decide
 
 # Windows consoles still default to a codepage that cannot hold an en dash, and
@@ -234,20 +241,21 @@ def show_status(connection) -> bool:
 
 
 def within_posting_window(now: datetime, timezone: str) -> bool:
-    """Is it the posting hour where the audience is?
+    """Is it the afternoon where the audience is?
 
-    Cron on GitHub Actions is UTC only, so the workflow fires at both 10:00 and
-    11:00 UTC and this decides which of those is actually noon in Bratislava.
-    That is the whole daylight-saving story: one firing is right in summer, the
-    other in winter, and the job works out which rather than anyone editing a
-    cron line twice a year.
+    The first version tested for the noon hour exactly, on the assumption that
+    GitHub's cron runs about on time. It does not: this repository's scheduled
+    jobs start one to three hours late, and an exact-hour test would have
+    skipped every firing and never posted at all.
 
-    The test is the hour itself, not a window around noon. GitHub's scheduler is
-    best-effort and routinely runs a quarter of an hour late, which an hour-long
-    bucket absorbs; a window wide enough to absorb the same delay would be wide
-    enough to also admit the other firing, and then both would run.
+    So the window is noon until the cutoff, the workflow fires several times
+    across it, and `decided_today` makes the first firing that gets through the
+    one that decides - the rest see the day is settled and stop. Daylight saving
+    needs no special case: the window is in local time, and the firings are
+    spread wide enough to land in it in either season.
     """
-    return now.astimezone(ZoneInfo(timezone)).hour == policy.POSTING_HOUR
+    hour = now.astimezone(ZoneInfo(timezone)).hour
+    return policy.POSTING_HOUR <= hour < policy.POSTING_CUTOFF_HOUR
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -263,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="publish even if a post already went out today")
     parser.add_argument("--now", help="pretend it is this instant (ISO 8601), for testing")
     parser.add_argument("--check-hour", action="store_true",
-                        help="exit 0 without acting unless it is near noon in the posting zone")
+                        help="for the cron: act only in the afternoon window, once per day")
     parser.add_argument("--timezone", default=policy.POSTING_TIMEZONE)
     parser.add_argument("--site-url", default=os.environ.get("SITE_URL", "https://ontrackapp.me"))
     parser.add_argument("--log-level", default="INFO")
@@ -310,10 +318,15 @@ def main(argv: list[str] | None = None) -> int:
         if now.tzinfo is None:
             now = now.replace(tzinfo=ZoneInfo(args.timezone))
 
-        if args.check_hour and not within_posting_window(now, args.timezone):
+        if args.check_hour:
             local = now.astimezone(ZoneInfo(args.timezone))
-            print(f"{local:%H:%M} {args.timezone} is not posting time; nothing to do")
-            return 0
+            if not within_posting_window(now, args.timezone):
+                print(f"{local:%H:%M} {args.timezone} is outside the posting window; nothing to do")
+                return 0
+            settled = decided_today(connection, local.date())
+            if settled and not args.force:
+                print(f"{local:%Y-%m-%d} is already settled ({settled}); nothing to do")
+                return 0
 
         result = run_pipeline(
             connection,

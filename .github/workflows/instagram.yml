@@ -1,19 +1,24 @@
 name: instagram
 
-# One post a day at noon in Bratislava.
+# One decision a day, from noon in Bratislava.
 #
-# GitHub's cron is UTC only and has no notion of daylight saving, so the job
-# fires twice - 10:00 and 11:00 UTC - and `--check-hour` lets through only the
-# firing that is actually noon in Europe/Bratislava. In summer that is the first,
-# in winter the second, and nobody has to remember to edit a cron line in March.
+# GitHub's cron is UTC only, knows nothing about daylight saving, and in
+# practice starts this repository's scheduled jobs one to three hours late. So
+# the job fires four times across the early afternoon, and `--check-hour` lets a
+# firing act only if it is between noon and 18:00 in Europe/Bratislava and the
+# day has not already been settled. The first firing through decides - post, or
+# a recorded decision not to - and the others see that and stop. A firing that
+# fails leaves the day open, so the next one is the retry.
 #
 # Everything about which post to make lives in social/policy.py. This file only
 # decides when the job runs and where its secrets come from.
 
 on:
   schedule:
-    - cron: "0 10 * * *"   # noon in Bratislava while CEST is in force
-    - cron: "0 11 * * *"   # noon in Bratislava while CET is in force
+    - cron: "0 10 * * *"   # noon CEST, if GitHub is on time
+    - cron: "0 11 * * *"   # noon CET, or the summer retry
+    - cron: "0 12 * * *"   # backups: a late start still lands in the window
+    - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       dry_run:

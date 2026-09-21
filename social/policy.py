@@ -164,3 +164,8 @@ WEEK_AHEAD_WEEKDAY = 0  # Monday
 # is decided against this zone, and stored in UTC.
 POSTING_TIMEZONE = "Europe/Bratislava"
 POSTING_HOUR = 12
+# The last local hour a scheduled run may still post in. GitHub's cron starts
+# this repository's jobs one to three hours late, so "noon" really means "the
+# first run at or after noon" - and after this hour a "today" post would be
+# arriving too late in the day to be worth making.
+POSTING_CUTOFF_HOUR = 18

@@ -341,6 +341,29 @@ def store_credential(
     connection.commit()
 
 
+def decided_today(connection, day: date) -> Optional[str]:
+    """Has a scheduled run already settled this day? Returns how, if so.
+
+    Published and skipped both count: one is a post, the other is a decision
+    that there was nothing worth posting, and a second firing should respect
+    either. A failure does not count - the next firing is the retry - and
+    neither does a dry run, because a manual dry run from the Actions tab to
+    check the setup must never stand in for the day's real post.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select outcome from social_posts
+             where decided_for = %s and outcome in ('published', 'skipped')
+             order by outcome = 'published' desc
+             limit 1
+            """,
+            (day,),
+        )
+        row = cursor.fetchone()
+    return row[0] if row else None
+
+
 def already_published(connection, day: date) -> bool:
     """Has a live post already gone out for this local day?"""
     with connection.cursor() as cursor:

@@ -88,6 +88,10 @@ class Brief:
     sessions: tuple[SessionLine, ...] = ()   # the rest of the day or weekend
     classes: tuple[str, ...] = ()            # F1, F2, F3
     other_events: tuple[str, ...] = ()       # for the week-ahead post
+    # The days the week-ahead rows fall on, spelled out. The rows abbreviate
+    # them ("Thu") for the card, and a writer naturally expands them - which is
+    # a true statement the validator has to be able to recognise as one.
+    event_weekdays: tuple[str, ...] = ()
     days_away: Optional[int] = None
     accent: tuple[int, int, int] = (238, 240, 241)
     venue_slug: Optional[str] = None
@@ -110,7 +114,7 @@ class Brief:
 
     @property
     def allowed_weekdays(self) -> set[str]:
-        days = set()
+        days = set(self.event_weekdays)
         for line in self._all_lines():
             days.add(line.viewer_weekday)
             days.add(line.circuit_weekday)
@@ -242,12 +246,14 @@ def build(
 def _week_ahead_brief(candidate: Candidate, now: datetime, viewer_zone: str) -> Brief:
     """The Monday look-ahead: several events, no single session."""
     lines: list[str] = []
+    weekdays: list[str] = []
     for event in sorted(candidate.events, key=lambda e: e.starts_at_utc)[:5]:
         first = min((s.starts_at_utc for s in event.sessions), default=None)
         if first is None:
             continue
         local = _local(first, viewer_zone)
         lines.append(f"{local:%a} · {event.series_short_name} · {event.name}")
+        weekdays.append(f"{local:%A}")
 
     leading = max(
         candidate.events,
@@ -268,6 +274,7 @@ def _week_ahead_brief(candidate: Candidate, now: datetime, viewer_zone: str) -> 
         sessions=(),
         classes=tuple(dict.fromkeys(e.series_short_name for e in candidate.events)),
         other_events=tuple(lines),
+        event_weekdays=tuple(dict.fromkeys(weekdays)),
         accent=_SERIES_ACCENT.get(leading.series_code, (238, 240, 241)),
         event_id=None,
         session_id=None,
