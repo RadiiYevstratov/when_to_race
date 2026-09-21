@@ -216,11 +216,22 @@ Meta's own walkthrough is
    is no longer a product called "Instagram Graph API" — it is just
    **Instagram**, and it covers both APIs above. *API setup with Instagram
    login* is added automatically, which is the one we want.
-4. **Add the Instagram account under *API setup with Instagram login*.** This is
-   what grants **Standard Access**, and Standard Access is enough to publish to
-   an account you own — so **no App Review is needed**. The dashboard does show
-   a "Complete App Review" step; that is for Advanced Access, i.e. posting on
-   behalf of accounts you do not own.
+4. **Make the Instagram account an *Instagram Tester* of the app, and accept.**
+   While an app is in development, Meta only lets accounts with a role on it
+   connect, and being the app's administrator is not enough — the Instagram
+   account needs its own role. Skipping this is what produces
+   **"Insufficient Developer Role"** at the Instagram login step.
+   - App Dashboard → **App roles → Roles → Add People → Instagram Tester**, and
+     enter the Instagram username.
+   - Accept it from the Instagram side, logged in as that account:
+     **instagram.com/accounts/manage_access → Tester Invites → Accept**.
+   - If *App roles* has no *Add People*, the app is attached to a business
+     portfolio, and roles are managed in Meta Business Suite instead.
+
+   This role is what grants **Standard Access**, and Standard Access is enough
+   to publish to an account you own — so **no App Review is needed**. The
+   dashboard does show a "Complete App Review" step; that is for Advanced
+   Access, i.e. posting on behalf of accounts you do not own.
 5. **Generate a long-lived token** with `instagram_business_basic` and
    `instagram_business_content_publish`. The dashboard can generate one
    directly; the full OAuth flow in
