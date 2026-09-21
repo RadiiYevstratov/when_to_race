@@ -46,6 +46,8 @@ Absolute rules:
 - Never invent a nickname for a circuit or a round.
 - Never say sessions overlap, clash, or run at the same time unless the sheet
   gives times that show it. Two events starting on the same day is not that.
+- Lines starting with "NOTE:" in the sheet are instructions to you. Follow
+  them; never repeat, quote or paraphrase them in the caption.
 - A weekday belongs to the clock it is written next to. The sheet gives the
   reader's day and time and the circuit's day and time separately; never pair
   one frame's weekday with the other frame's time.
@@ -139,11 +141,17 @@ def fact_sheet(brief: Brief) -> str:
         # Each row is the day an event's first session falls on - usually
         # practice - and nothing more. Without saying so, the first real caption
         # read three Friday rows as "a full Friday of overlapping action".
+        # The explanation is a NOTE line, which the system prompt forbids
+        # repeating: written as a parenthesis on the heading, the first
+        # published caption echoed it back as its own closing sentence.
         lines += [
             "",
-            "This week (the day each event's first session is on - usually",
-            "practice, not the race; no times are known here):",
-        ] + [f"  {row}" for row in brief.other_events]
+            "This week:",
+        ] + [f"  {row}" for row in brief.other_events] + [
+            "NOTE: each day above is when that event's first session is on -",
+            "usually practice, not the race - and no times are known. Describe",
+            "these as the days the events start.",
+        ]
 
     if brief.headline or brief.sessions:
         lines += [
@@ -158,8 +166,8 @@ def fact_sheet(brief: Brief) -> str:
         # explaining that its weekdays were central European weekdays.
         lines += [
             "",
-            "The days above are the reader's days. There are no times to explain,",
-            "so do not mention timezones at all.",
+            "NOTE: the days above are the reader's days. There are no times to",
+            "explain, so do not mention timezones at all.",
         ]
     return "\n".join(lines)
 
