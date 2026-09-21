@@ -136,12 +136,22 @@ def fact_sheet(brief: Brief) -> str:
     if brief.other_events:
         lines += ["", "This week:"] + [f"  {row}" for row in brief.other_events]
 
-    lines += [
-        "",
-        "The reader is in central Europe. Times at the circuit and the reader's",
-        "time are both given above where they differ; use whichever reads better,",
-        "and say which is which.",
-    ]
+    if brief.headline or brief.sessions:
+        lines += [
+            "",
+            "The reader is in central Europe. Times at the circuit and the reader's",
+            "time are both given above where they differ; use whichever reads better,",
+            "and say which is which.",
+        ]
+    else:
+        # With no clock times there is nothing to disambiguate. Asked to "say
+        # which is which" anyway, the first real caption added a sentence
+        # explaining that its weekdays were central European weekdays.
+        lines += [
+            "",
+            "The days above are the reader's days. There are no times to explain,",
+            "so do not mention timezones at all.",
+        ]
     return "\n".join(lines)
 
 
