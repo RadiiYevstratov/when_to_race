@@ -747,3 +747,67 @@ class WeekAheadValidationTests(unittest.TestCase):
     def test_a_day_not_in_the_list_is_still_refused(self):
         with self.assertRaises(captions.ValidationError):
             captions.validate("Formula 1 races on Sunday in Baku.", self.week_ahead())
+
+
+@unittest.skipUnless(HAS_PILLOW, "the card needs Pillow")
+class WeekAheadCardTests(unittest.TestCase):
+    """A post about four championships is not a post about the first of them.
+
+    The first real week-ahead card was headed "FORMULA 1" in F1 red and tagged
+    #F1 #Formula1, because the brief names a leading series for scoring and the
+    card and hashtags borrowed it.
+    """
+
+    def brief(self):
+        from social.selection import Candidate
+
+        events = [
+            event(eid=1, name="Azerbaijan Grand Prix",
+                  sessions=[session(1, "race", "Race", utc(2026, 9, 24, 11))]),
+            event(eid=2, series="wec", short="WEC", name="6 Hours of Fuji",
+                  sessions=[session(2, "race", "Race", utc(2026, 9, 25, 2),
+                                    category="wec", short="WEC")]),
+            event(eid=3, series="nascar", short="NASCAR", name="Hollywood Casino 400",
+                  sessions=[session(3, "race", "Race", utc(2026, 9, 25, 19),
+                                    category="cup", short="Cup")]),
+        ]
+        return brief_module.build(Candidate("week_ahead", tuple(events), None, 0),
+                                  noon(2026, 9, 21))
+
+    def test_the_card_belongs_to_no_single_championship(self):
+        card = pipeline._card_for(self.brief())
+        self.assertEqual(card.series, "Motorsport")
+        self.assertEqual(card.accent, pipeline.WEEK_AHEAD_ACCENT)
+        self.assertIsNone(card.lines_label)
+
+    def test_every_championship_gets_one_tag(self):
+        tags = brief_module.hashtags(self.brief())
+        self.assertEqual(tags[:3], ["#F1", "#WEC", "#NASCAR"])
+        self.assertNotIn("#Formula1", tags)
+
+
+class HashtagSpellingTests(unittest.TestCase):
+    """Championships spell their own names; the tags must not respell them."""
+
+    def test_the_official_spellings_survive(self):
+        for code, expected in (("nascar", "#NASCAR"), ("wec", "#WEC"),
+                               ("motogp", "#MotoGP"), ("wsbk", "#WorldSBK")):
+            brief = brief_module.Brief(
+                kind="today", series="x", series_code=code, event_name="Round",
+                season=2026, circuit=None, city=None, country=None,
+                circuit_timezone=None, viewer_timezone="Europe/Bratislava",
+                headline=None,
+            )
+            self.assertIn(expected, brief_module.hashtags(brief))
+
+    def test_multi_word_names_are_joined_without_losing_capitals(self):
+        brief = brief_module.Brief(
+            kind="today", series="Formula 1", series_code="f1",
+            event_name="Azerbaijan Grand Prix", season=2026,
+            circuit="Baku City Circuit", city="Bristol, TN", country="AZ",
+            circuit_timezone=None, viewer_timezone="Europe/Bratislava", headline=None,
+        )
+        tags = brief_module.hashtags(brief)
+        self.assertIn("#AzerbaijanGP", tags)
+        self.assertIn("#BristolTN", tags)
+        self.assertIn("#BakuCityCircuit", tags)

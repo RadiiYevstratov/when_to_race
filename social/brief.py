@@ -92,6 +92,9 @@ class Brief:
     # them ("Thu") for the card, and a writer naturally expands them - which is
     # a true statement the validator has to be able to recognise as one.
     event_weekdays: tuple[str, ...] = ()
+    # Every championship a week-ahead post covers, in the order it lists them.
+    # The post is about all of them, so its hashtags have to be too.
+    series_codes: tuple[str, ...] = ()
     days_away: Optional[int] = None
     accent: tuple[int, int, int] = (238, 240, 241)
     venue_slug: Optional[str] = None
@@ -273,6 +276,12 @@ def _week_ahead_brief(candidate: Candidate, now: datetime, viewer_zone: str) -> 
         headline=None,
         sessions=(),
         classes=tuple(dict.fromkeys(e.series_short_name for e in candidate.events)),
+        series_codes=tuple(
+            dict.fromkeys(
+                e.series_code
+                for e in sorted(candidate.events, key=lambda e: e.starts_at_utc)
+            )
+        ),
         other_events=tuple(lines),
         event_weekdays=tuple(dict.fromkeys(weekdays)),
         accent=_SERIES_ACCENT.get(leading.series_code, (238, 240, 241)),
@@ -309,12 +318,25 @@ def hashtags(brief: Brief, limit: int = 7) -> list[str]:
     def add(value: Optional[str]) -> None:
         if not value:
             return
-        cleaned = "".join(ch for ch in value.title() if ch.isalnum())
+        # Capitalise the start of each word and leave the rest alone.
+        # str.title() lower-cases everything after the first letter, which
+        # turned the championships' own spellings into #Nascar, #Wec, #Motogp
+        # and #Worldsbk, and "Azerbaijan GP" into #AzerbaijanGp.
+        words = value.split()
+        cased = "".join(word[:1].upper() + word[1:] for word in words)
+        cleaned = "".join(ch for ch in cased if ch.isalnum())
         if cleaned and cleaned not in tags:
             tags.append(cleaned)
 
-    for tag in _SERIES_TAGS.get(brief.series_code, ()):
-        add(tag)
+    if brief.kind == "week_ahead":
+        # One tag per championship in the week, not the leading series' full
+        # set: tagging a four-championship post #F1 #Formula1 would file it
+        # under Formula 1 alone, which is exactly what the card now avoids.
+        for code in brief.series_codes:
+            add(_SERIES_TAGS.get(code, (None,))[0])
+    else:
+        for tag in _SERIES_TAGS.get(brief.series_code, ()):
+            add(tag)
 
     if brief.kind != "week_ahead":
         add(brief.event_name.replace("Grand Prix", "GP"))

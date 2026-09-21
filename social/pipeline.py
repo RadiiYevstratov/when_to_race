@@ -217,6 +217,10 @@ def _with_venue(the_brief: brief_module.Brief, slug: Optional[str]) -> brief_mod
     return replace(the_brief, venue_slug=slug)
 
 
+# ON TRACK's own ink rather than any championship's colour, for the one post
+# kind that belongs to none of them.
+WEEK_AHEAD_ACCENT = (238, 240, 241)
+
 _KICKER = {
     "today": "Today",
     "tomorrow": "Tomorrow",
@@ -250,15 +254,20 @@ def _card_for(the_brief: brief_module.Brief) -> CardContent:
 
     return CardContent(
         kicker=_KICKER.get(the_brief.kind, "On track"),
-        series=the_brief.series,
+        # A week-ahead post covers several championships. Labelling it with
+        # whichever one scored highest - and painting it that series' colour -
+        # told the feed it was a Formula 1 post.
+        series="Motorsport" if the_brief.kind == "week_ahead" else the_brief.series,
         title=the_brief.event_name,
         subtitle=f"{head.category} {head.name}" if head else None,
-        accent=the_brief.accent,
+        accent=WEEK_AHEAD_ACCENT if the_brief.kind == "week_ahead" else the_brief.accent,
         fields=tuple(fields),
         venue_slug=the_brief.venue_slug,
         lines=the_brief.other_events or _session_lines(the_brief),
+        # The week-ahead list needs no heading: the kicker already says
+        # "The week ahead" directly above it.
         lines_label=(
-            "This week"
+            None
             if the_brief.other_events
             else (f"Also on {head.viewer_weekday}" if head else None)
         ),
