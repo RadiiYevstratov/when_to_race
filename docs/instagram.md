@@ -1,15 +1,12 @@
 # The Instagram account
 
-## Status: built and tested. Not connected to an Instagram account yet
+## Status: live — connected to @ontrackapp.me on 21 September 2026
 
-Everything up to publishing runs today against the real calendar: the job picks
-the day's subject, draws the card, writes the caption, checks the caption back
-against the database and stores it. What it cannot do is post, because posting
-needs credentials that only a person with the Instagram account can create. That
-is the one remaining step, and it is described at the bottom.
-
-Until then `python -m social.run` is a complete dry run. Nothing about the code
-changes when the token arrives; `--publish` starts working.
+The token was verified against Meta the same day (Business account, 60-day
+token, now stored and self-renewing). The job runs every afternoon and posts
+when there is something worth posting. `python -m social.run` with no flags is
+still a complete dry run, and every mode except `--publish` stops before
+Instagram.
 
 ---
 
@@ -128,13 +125,22 @@ token with a newer issue date, so a stale seed cannot undo a refresh.
 
 ## The schedule
 
-`.github/workflows/instagram.yml` fires at **10:00 and 11:00 UTC** every day.
-GitHub's cron is UTC only and knows nothing about daylight saving, so the job
-runs `--check-hour` and acts only on the firing that is actually noon in
-Bratislava: the first in summer, the second in winter. The test is the hour
-itself, not a window around noon, because GitHub routinely starts a scheduled
-job a quarter of an hour late and a window wide enough to absorb that would also
-admit the other firing.
+`.github/workflows/instagram.yml` fires at **:23 and :53 past every hour from
+10:00 to 15:59 UTC** — twelve times a day. That is deliberate. GitHub's
+scheduler delays scheduled jobs under load, the start of every hour is its
+busiest time, and when load is high enough it drops queued jobs altogether. On
+the first live day, firings set on the hour started hours late or not at all.
+
+Each firing runs `--check-hour`, which acts only between **12:00 and 18:00
+Bratislava** and only if the day is not already settled. The first firing
+through decides — a post, or a recorded decision not to post — and the rest see
+that and stop in seconds. A failure leaves the day open, so the next firing is
+the retry. Daylight saving needs no special case: the window is in local time.
+
+One more GitHub rule worth knowing: in a public repository, scheduled workflows
+are **disabled after 60 days without repository activity**. Scheduled runs do
+not count as activity. A commit every few weeks keeps both this job and the
+scrapers alive.
 
 A post can be made by hand from the Actions tab at any time. The dispatch form
 defaults to a dry run.

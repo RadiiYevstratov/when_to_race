@@ -2,23 +2,26 @@ name: instagram
 
 # One decision a day, from noon in Bratislava.
 #
-# GitHub's cron is UTC only, knows nothing about daylight saving, and in
-# practice starts this repository's scheduled jobs one to three hours late. So
-# the job fires four times across the early afternoon, and `--check-hour` lets a
-# firing act only if it is between noon and 18:00 in Europe/Bratislava and the
-# day has not already been settled. The first firing through decides - post, or
-# a recorded decision not to - and the others see that and stop. A firing that
-# fails leaves the day open, so the next one is the retry.
+# GitHub's scheduler is the unreliable part of this, and not only by being late.
+# Its documentation says the schedule event "can be delayed during periods of
+# high loads", that high-load times "include the start of every hour", and that
+# under enough load "some queued jobs may be dropped". On the first live day,
+# firings set for 10:00, 11:00, 12:00 and 13:00 UTC never started at all.
+#
+# So the job fires at :23 and :53, away from the top of the hour, twelve times
+# across the afternoon. `--check-hour` lets a firing act only between noon and
+# 18:00 Europe/Bratislava and only if the day is not already settled: the first
+# firing through decides - a post, or a recorded decision not to - and every
+# later one sees that and stops within seconds. A failure leaves the day open,
+# so the next firing is the retry. Daylight saving needs no special case; the
+# window is in local time and the firings cover it in either season.
 #
 # Everything about which post to make lives in social/policy.py. This file only
 # decides when the job runs and where its secrets come from.
 
 on:
   schedule:
-    - cron: "0 10 * * *"   # noon CEST, if GitHub is on time
-    - cron: "0 11 * * *"   # noon CET, or the summer retry
-    - cron: "0 12 * * *"   # backups: a late start still lands in the window
-    - cron: "0 13 * * *"
+    - cron: "23,53 10-15 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
