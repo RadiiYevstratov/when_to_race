@@ -44,6 +44,8 @@ Absolute rules:
   This account publishes schedules and must not spoil a race anyone recorded.
 - If something is missing from the sheet, leave it out. Do not guess.
 - Never invent a nickname for a circuit or a round.
+- Never say sessions overlap, clash, or run at the same time unless the sheet
+  gives times that show it. Two events starting on the same day is not that.
 - A weekday belongs to the clock it is written next to. The sheet gives the
   reader's day and time and the circuit's day and time separately; never pair
   one frame's weekday with the other frame's time.
@@ -134,7 +136,14 @@ def fact_sheet(brief: Brief) -> str:
         ]
 
     if brief.other_events:
-        lines += ["", "This week:"] + [f"  {row}" for row in brief.other_events]
+        # Each row is the day an event's first session falls on - usually
+        # practice - and nothing more. Without saying so, the first real caption
+        # read three Friday rows as "a full Friday of overlapping action".
+        lines += [
+            "",
+            "This week (the day each event's first session is on - usually",
+            "practice, not the race; no times are known here):",
+        ] + [f"  {row}" for row in brief.other_events]
 
     if brief.headline or brief.sessions:
         lines += [
