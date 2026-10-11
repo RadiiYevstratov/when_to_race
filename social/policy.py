@@ -164,8 +164,10 @@ WEEK_AHEAD_WEEKDAY = 0  # Monday
 # is decided against this zone, and stored in UTC.
 POSTING_TIMEZONE = "Europe/Bratislava"
 POSTING_HOUR = 12
-# The last local hour a scheduled run may still post in. GitHub's cron starts
-# this repository's jobs one to three hours late, so "noon" really means "the
-# first run at or after noon" - and after this hour a "today" post would be
-# arriving too late in the day to be worth making.
-POSTING_CUTOFF_HOUR = 18
+# The last local hour a scheduled run may still post in. Three weeks of live
+# running showed GitHub dropping eleven of the twelve daily firings and starting
+# the survivor between 18:20 and 21:20 local, so a cutoff of 18:00 threw away
+# most days entirely: nine posts in twenty-one days, and nothing at all on
+# eleven of them. Twenty is late for a post but it is not silence, and it is a
+# backstop rather than the plan - the plan is a trigger that runs on time.
+POSTING_CUTOFF_HOUR = 20

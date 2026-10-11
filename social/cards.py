@@ -29,8 +29,21 @@ FONT_DIR = ASSETS / "fonts"
 CIRCUITS_TS = Path(__file__).resolve().parent.parent / "web" / "lib" / "circuits.ts"
 
 # Instagram accepts 4:5 to 1.91:1 and no more than 1440px wide. 4:5 takes the
-# most vertical space in the feed, which is the whole argument for it.
-WIDTH, HEIGHT = 1080, 1350
+# most vertical space in the feed, which is the whole argument for it, and 1440
+# is taken because it is the most Instagram will keep: the first three weeks of
+# posts went out at 1080 and arrived soft on a phone, which renders them at
+# three times that in device pixels.
+#
+# The design is drawn in 1080-wide units and multiplied up by SCALE, so every
+# measurement below is still the number a designer would reason about.
+DESIGN_WIDTH, DESIGN_HEIGHT = 1080, 1350
+SCALE = 4 / 3
+WIDTH, HEIGHT = int(DESIGN_WIDTH * SCALE), int(DESIGN_HEIGHT * SCALE)
+
+
+def u(value: float) -> int:
+    """A design unit in output pixels."""
+    return int(round(value * SCALE))
 
 # The site's Carbon palette, so a post and the page it links to look like one
 # product. Duplicated here rather than imported because the web tokens are CSS
@@ -42,7 +55,7 @@ INK = (238, 240, 241)
 INK_MUTED = (138, 146, 152)
 INK_FAINT = (86, 93, 98)
 
-MARGIN = 84
+MARGIN = u(84)
 
 
 # --------------------------------------------------------------------------
@@ -234,6 +247,18 @@ def render(content: CardContent, outlines: Optional[dict] = None) -> Image.Image
     draw = ImageDraw.Draw(canvas)
     inner = WIDTH - 2 * MARGIN
 
+    # --- how much room the facts will take --------------------------------
+    #
+    # Worked out before anything is drawn, because the circuit behind the card
+    # has to stop above it. The block is sized to the fields it actually has and
+    # anchored to the footer: a fixed start that grew downwards ran "where"
+    # through "ontrackapp.me", and a fixed-height drawing above it crossed the
+    # rule as soon as a post had four rows instead of three.
+    fields = list(content.fields)
+    ROW = u(92)
+    FOOTER_SPACE = u(92)
+    panel_top = HEIGHT - MARGIN - FOOTER_SPACE - len(fields) * ROW
+
     # --- the circuit, behind everything -----------------------------------
     #
     # Not every venue has a traced outline - the oval tracks mostly do not - and
@@ -246,78 +271,76 @@ def render(content: CardContent, outlines: Optional[dict] = None) -> Image.Image
         # Heavier than the site's nine percent: there the drawing sits behind
         # body text that has to stay readable, here it is the only thing in the
         # middle of the card and at that opacity it disappeared.
-        _draw_outline(canvas, polygons, (MARGIN - 10, 440, WIDTH - MARGIN + 10, 880), INK, 62)
+        _draw_outline(
+            canvas, polygons,
+            (MARGIN - u(10), u(440), WIDTH - MARGIN + u(10), panel_top - u(24)),
+            INK, 62,
+        )
 
     # --- accent rule and kicker -------------------------------------------
-    draw.rectangle([MARGIN, MARGIN, MARGIN + 88, MARGIN + 7], fill=content.accent)
+    draw.rectangle([MARGIN, MARGIN, MARGIN + u(88), MARGIN + u(7)], fill=content.accent)
 
-    kicker_font = semibold(30)
-    draw.text((MARGIN, MARGIN + 34), content.kicker.upper(), font=kicker_font, fill=INK_MUTED)
+    kicker_font = semibold(u(30))
+    draw.text((MARGIN, MARGIN + u(34)), content.kicker.upper(), font=kicker_font, fill=INK_MUTED)
 
-    series_font = semibold(30)
+    series_font = semibold(u(30))
     series_text = content.series.upper()
     draw.text(
-        (WIDTH - MARGIN - draw.textlength(series_text, font=series_font), MARGIN + 34),
+        (WIDTH - MARGIN - draw.textlength(series_text, font=series_font), MARGIN + u(34)),
         series_text,
         font=series_font,
         fill=content.accent,
     )
 
     # --- the headline ------------------------------------------------------
-    y = MARGIN + 130
-    title_font = _fit(draw, content.title, bold, 82, inner, 44)
+    y = MARGIN + u(130)
+    title_font = _fit(draw, content.title, bold, u(82), inner, u(44))
     for line in _wrap(draw, content.title, title_font, inner)[:2]:
         draw.text((MARGIN, y), line, font=title_font, fill=INK)
-        y += title_font.size + 12
+        y += title_font.size + u(12)
 
     if content.subtitle:
-        y += 14
-        sub_font = _fit(draw, content.subtitle, semibold, 50, inner, 32)
+        y += u(14)
+        sub_font = _fit(draw, content.subtitle, semibold, u(50), inner, u(32))
         draw.text((MARGIN, y), content.subtitle, font=sub_font, fill=content.accent)
-        y += sub_font.size + 10
+        y += sub_font.size + u(10)
 
     # --- the list, when there is no circuit drawing ------------------------
     if content.lines and not polygons:
-        y = max(y + 56, 480)
+        y = max(y + u(56), u(480))
         if content.lines_label:
-            draw.text((MARGIN, y), content.lines_label.upper(), font=regular(23), fill=INK_FAINT)
-            y += 46
-        row_font = regular(38)
+            draw.text((MARGIN, y), content.lines_label.upper(), font=regular(u(23)), fill=INK_FAINT)
+            y += u(46)
+        row_font = regular(u(38))
         for line in content.lines[:6]:
             fitted = row_font if draw.textlength(line, font=row_font) <= inner else _fit(
-                draw, line, regular, 38, inner, 24
+                draw, line, regular, u(38), inner, u(24)
             )
             draw.text((MARGIN, y), line, font=fitted, fill=INK_MUTED)
-            y += row_font.size + 26
+            y += row_font.size + u(26)
 
     # --- the facts, along the bottom --------------------------------------
-    #
-    # The block is sized to the fields it actually has and then anchored above
-    # the footer, rather than started at a fixed height and allowed to grow: the
-    # first version ran "where" straight through "ontrackapp.me".
-    fields = list(content.fields)
+    draw.line([(MARGIN, panel_top), (WIDTH - MARGIN, panel_top)], fill=RULE, width=u(2))
 
-    ROW = 92
-    FOOTER_SPACE = 92
-    panel_top = HEIGHT - MARGIN - FOOTER_SPACE - len(fields) * ROW
-    draw.line([(MARGIN, panel_top), (WIDTH - MARGIN, panel_top)], fill=RULE, width=2)
-
-    label_font = regular(23)
-    row = panel_top + 26
+    label_font = regular(u(23))
+    row = panel_top + u(26)
     for label, value in fields:
         draw.text((MARGIN, row), label.upper(), font=label_font, fill=INK_FAINT)
-        fitted = _fit(draw, value, semibold, 44, inner, 26)
-        draw.text((MARGIN, row + 30), value, font=fitted, fill=INK)
+        fitted = _fit(draw, value, semibold, u(44), inner, u(26))
+        draw.text((MARGIN, row + u(30)), value, font=fitted, fill=INK)
         row += ROW
 
     # --- the footer --------------------------------------------------------
-    footer_font = regular(28)
-    draw.text((MARGIN, HEIGHT - MARGIN - 34), "ontrackapp.me", font=footer_font, fill=INK_FAINT)
+    footer_font = regular(u(28))
+    draw.text(
+        (MARGIN, HEIGHT - MARGIN - u(34)), "ontrackapp.me",
+        font=footer_font, fill=INK_FAINT,
+    )
 
     mark = "ON TRACK"
-    mark_font = bold(28)
+    mark_font = bold(u(28))
     draw.text(
-        (WIDTH - MARGIN - draw.textlength(mark, font=mark_font), HEIGHT - MARGIN - 34),
+        (WIDTH - MARGIN - draw.textlength(mark, font=mark_font), HEIGHT - MARGIN - u(34)),
         mark,
         font=mark_font,
         fill=INK_MUTED,
@@ -325,12 +348,22 @@ def render(content: CardContent, outlines: Optional[dict] = None) -> Image.Image
     return canvas
 
 
-def to_jpeg(image: Image.Image, quality: int = 88) -> bytes:
-    """JPEG bytes in sRGB, which is the only thing Instagram accepts."""
+def to_jpeg(image: Image.Image, quality: int = 95) -> bytes:
+    """JPEG bytes in sRGB, which is the only thing Instagram accepts.
+
+    Quality 95 with no chroma subsampling, where this used to be 88 at 4:2:2.
+    4:2:2 stores colour at half horizontal resolution, which is invisible on a
+    photograph and very visible on the thing this card actually is: coloured
+    text and hairlines on a near-black ground, where it fringes every edge. The
+    result is a few hundred KB against a limit of eight megabytes - there was
+    never anything to save here.
+    """
     import io
 
     buffer = io.BytesIO()
-    image.convert("RGB").save(buffer, format="JPEG", quality=quality, optimize=True, subsampling=1)
+    image.convert("RGB").save(
+        buffer, format="JPEG", quality=quality, optimize=True, subsampling=0
+    )
     return buffer.getvalue()
 
 

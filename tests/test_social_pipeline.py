@@ -493,9 +493,9 @@ class PostingWindowTests(unittest.TestCase):
         self.assertFalse(self.check(10, 1, 15))             # 11:00 CET
 
     def test_nor_too_late_in_the_day(self):
-        """A "today" post at eight in the evening is not worth making."""
-        self.assertTrue(self.check(15, 7, 1, minute=59))    # 17:59 CEST
-        self.assertFalse(self.check(16, 7, 1))              # 18:00 CEST
+        """Late is a backstop for a dropped firing; the small hours are not."""
+        self.assertTrue(self.check(17, 7, 1, minute=59))    # 19:59 CEST
+        self.assertFalse(self.check(18, 7, 1))              # 20:00 CEST
 
     def test_both_seasons_get_a_firing_inside_the_window(self):
         """Daylight saving needs no special case, only enough firings."""
