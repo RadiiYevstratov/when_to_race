@@ -93,7 +93,33 @@ def run(
         )
         return RunResult("skipped", decision=decision, record_id=record_id)
 
-    candidate = decision.chosen
+    return publish_candidate(
+        connection, now, decision.chosen,
+        dry_run=dry_run, site_url=site_url, timezone_name=timezone_name,
+        decision=decision,
+    )
+
+
+def publish_candidate(
+    connection,
+    now: datetime,
+    candidate,
+    *,
+    dry_run: bool = True,
+    site_url: str = "https://ontrackapp.me",
+    timezone_name: str = policy.POSTING_TIMEZONE,
+    decision: Optional[Decision] = None,
+) -> RunResult:
+    """Build and publish one chosen candidate, however it was chosen.
+
+    Everything after the decision lives here, so that a post picked by hand -
+    `--event`, for a round somebody wants covered now - goes through exactly the
+    same brief, card, caption and validation as the daily one. A second path to
+    Instagram would be a second set of bugs.
+    """
+    from zoneinfo import ZoneInfo
+
+    today = now.astimezone(ZoneInfo(timezone_name)).date()
 
     # --- assemble the facts -------------------------------------------------
     try:
@@ -229,6 +255,19 @@ _KICKER = {
 }
 
 
+def _kicker(the_brief: brief_module.Brief) -> str:
+    """What the top-left of the card calls this post.
+
+    The daily job only ever previews a weekend two days out, so "This weekend"
+    was always true. A post made by hand can be about a round a fortnight away,
+    and calling that "this weekend" would be the card's own words contradicting
+    its dates.
+    """
+    if the_brief.kind == "weekend_preview" and (the_brief.days_away or 0) > 3:
+        return "Next up"
+    return _KICKER.get(the_brief.kind, "On track")
+
+
 def _card_for(the_brief: brief_module.Brief) -> CardContent:
     """The card, in the reader's frame.
 
@@ -248,12 +287,23 @@ def _card_for(the_brief: brief_module.Brief) -> CardContent:
         if head.circuit_time != head.viewer_time:
             label = f"at {the_brief.city}" if the_brief.city else "at the circuit"
             fields.append((label, head.circuit_stamp))
+    elif the_brief.sessions:
+        # A preview has no single session to lead with, and the first version
+        # therefore put no date on the card at all: it said "THIS WEEKEND",
+        # named the round, and left when to the caption, which nobody reads in
+        # a feed. The weekend's first session answers it.
+        first = the_brief.sessions[0]
+        fields.append(("starts", f"{first.viewer_weekday} {first.viewer_date_label}"))
+        fields.append((
+            "first session",
+            f"{first.category} {first.name} · {first.viewer_time} {first.viewer_zone_label}",
+        ))
 
     if the_brief.place:
         fields.append(("where", the_brief.place))
 
     return CardContent(
-        kicker=_KICKER.get(the_brief.kind, "On track"),
+        kicker=_kicker(the_brief),
         # A week-ahead post covers several championships. Labelling it with
         # whichever one scored highest - and painting it that series' colour -
         # told the feed it was a Formula 1 post.

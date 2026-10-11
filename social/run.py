@@ -19,14 +19,17 @@ is how the cadence was tuned, and how a policy change is checked before it ships
 from __future__ import annotations
 
 import argparse
+import io
 import logging
 import os
 import sys
 from collections import Counter
 from datetime import date, datetime, time, timedelta
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from . import instagram, policy
+from .pipeline import publish_candidate
 from .pipeline import run as run_pipeline
 from .repository import (
     connect,
@@ -162,7 +165,12 @@ def show_run(result, day: date) -> None:
     if the_brief is None:
         return
 
-    print(f"  kind: {result.decision.chosen.kind}   score: {result.decision.chosen.score}")
+    # A hand-picked post has no decision behind it: nothing scored it, and
+    # nothing was beaten.
+    if result.decision and result.decision.chosen:
+        print(f"  kind: {result.decision.chosen.kind}   score: {result.decision.chosen.score}")
+    else:
+        print(f"  kind: {the_brief.kind}   (chosen by hand)")
     print(f"  event: {the_brief.series} — {the_brief.event_name}")
     if the_brief.headline:
         h = the_brief.headline
@@ -172,8 +180,18 @@ def show_run(result, day: date) -> None:
     if the_brief.place:
         print(f"  where: {the_brief.place}")
 
+    # Measured, not asserted: this line went on claiming 1080x1350 after the
+    # card moved to 1440x1800.
     size = len(result.media_bytes or b"") / 1024
-    print(f"\n  media: {size:.0f} KB JPEG 1080x1350")
+    shape = ""
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(result.media_bytes or b"")) as image:
+            shape = f" {image.width}x{image.height}"
+    except Exception:  # noqa: BLE001 - a report must not fail on its own report
+        pass
+    print(f"\n  media: {size:.0f} KB JPEG{shape}")
     print(f"  url:   {result.media_url}")
     print(f"  caption ({result.caption_source}):")
     for line in (result.caption or "").splitlines():
@@ -240,6 +258,79 @@ def show_status(connection) -> bool:
     return healthy
 
 
+def pick_event(connection, now: datetime, wanted: str, timezone: str):
+    """Find one event by slug, or by a loose match on its name or series.
+
+    For posting a round on request rather than waiting for its turn: a new
+    circuit, a season finale, a weekend somebody wants covered today. The search
+    is forgiving because the alternative is looking an id up in the database.
+    """
+    events = load_events(connection, now - timedelta(days=2), now + timedelta(days=60))
+    needle = wanted.strip().lower()
+
+    exact = [e for e in events if e.slug.lower() == needle]
+    if exact:
+        return exact[0]
+
+    matches = [
+        e for e in events
+        if needle in e.slug.lower()
+        or needle in e.name.lower()
+        or needle == e.series_code.lower()
+    ]
+    if not matches:
+        raise SystemExit(
+            f"no upcoming event matches {wanted!r}. "
+            f"Try one of: {', '.join(sorted({e.slug for e in events})[:8])} ..."
+        )
+    # The soonest match, which is what "the next F1 round" means.
+    return min(matches, key=lambda e: e.starts_at_utc)
+
+
+def candidate_for(event, now: datetime, kind: Optional[str], timezone: str) -> Candidate:
+    """The post to make about this event, as the daily job would have made it.
+
+    The kind is chosen from how far away the event is, by the same reading the
+    selector uses, so a hand-made post is the one the schedule would have made
+    on the right day rather than a different sort of post.
+    """
+    local_today = now.astimezone(ZoneInfo(timezone)).date()
+    sessions = sorted(event.sessions, key=lambda s: s.starts_at_utc)
+    if not sessions:
+        raise SystemExit(f"{event.name} has no sessions to post about")
+
+    def on(day):
+        return [
+            s for s in sessions
+            if s.starts_at_utc.astimezone(ZoneInfo(timezone)).date() == day
+            and s.session_type in policy.NOTABLE_SESSION_TYPES
+        ]
+
+    if kind is None:
+        today_sessions = [s for s in on(local_today) if s.starts_at_utc > now]
+        if today_sessions:
+            kind = "today"
+        elif on(local_today + timedelta(days=1)):
+            kind = "tomorrow"
+        else:
+            kind = "weekend_preview"
+
+    session = None
+    if kind in ("today", "tomorrow"):
+        day = local_today if kind == "today" else local_today + timedelta(days=1)
+        choices = [s for s in on(day) if kind == "tomorrow" or s.starts_at_utc > now]
+        if not choices:
+            raise SystemExit(f"{event.name} has nothing on {day}; try --kind weekend_preview")
+        rank = {k: i for i, k in enumerate(policy.NOTABLE_SESSION_TYPES)}
+        session = min(
+            choices,
+            key=lambda s: (rank.get(s.session_type, 9), 0 if s.is_headline_class else 1,
+                           s.starts_at_utc),
+        )
+
+    return Candidate(kind, (event,), session, 0)
+
+
 def within_posting_window(now: datetime, timezone: str) -> bool:
     """Is it the afternoon where the audience is?
 
@@ -270,6 +361,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true",
                         help="publish even if a post already went out today")
     parser.add_argument("--now", help="pretend it is this instant (ISO 8601), for testing")
+    parser.add_argument("--event", metavar="SLUG",
+                        help="post about this event instead of today's choice")
+    parser.add_argument("--kind", choices=("today", "tomorrow", "weekend_preview"),
+                        help="with --event: which sort of post to make")
     parser.add_argument("--check-hour", action="store_true",
                         help="for the cron: act only in the afternoon window, once per day")
     parser.add_argument("--timezone", default=policy.POSTING_TIMEZONE)
@@ -328,14 +423,27 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{local:%Y-%m-%d} is already settled ({settled}); nothing to do")
                 return 0
 
-        result = run_pipeline(
-            connection,
-            now,
-            dry_run=not args.publish,
-            site_url=args.site_url,
-            timezone_name=args.timezone,
-            force=args.force,
-        )
+        if args.event:
+            event = pick_event(connection, now, args.event, args.timezone)
+            candidate = candidate_for(event, now, args.kind, args.timezone)
+            print(f"chosen by hand: {event.series_short_name} — {event.name} ({candidate.kind})")
+            result = publish_candidate(
+                connection,
+                now,
+                candidate,
+                dry_run=not args.publish,
+                site_url=args.site_url,
+                timezone_name=args.timezone,
+            )
+        else:
+            result = run_pipeline(
+                connection,
+                now,
+                dry_run=not args.publish,
+                site_url=args.site_url,
+                timezone_name=args.timezone,
+                force=args.force,
+            )
         show_run(result, now.astimezone(ZoneInfo(args.timezone)).date())
         return 0 if result.ok else 1
 
