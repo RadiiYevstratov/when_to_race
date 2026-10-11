@@ -32,6 +32,10 @@ on:
         description: "Publish even if today already has a post"
         type: boolean
         default: false
+      event:
+        description: "Post about this round (slug, name or series) instead of today's choice"
+        type: string
+        default: ""
 
 # Two runs must never overlap. The unique index on the day is the real guarantee,
 # but a queued second run is wasted minutes and a confusing log.
@@ -65,7 +69,8 @@ jobs:
           python -m social.run \
             ${{ github.event_name == 'schedule' && '--check-hour' || '' }} \
             ${{ inputs.dry_run == true && ' ' || '--publish' }} \
-            ${{ inputs.force == true && '--force' || '' }}
+            ${{ inputs.force == true && '--force' || '' }} \
+            ${{ inputs.event != '' && format('--event "{0}"', inputs.event) || '' }}
 
       # Instagram keeps its own copy of every published image and nothing on the
       # site links to an old card, so the bytes are dead weight after a couple of
