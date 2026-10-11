@@ -811,3 +811,53 @@ class HashtagSpellingTests(unittest.TestCase):
         self.assertIn("#AzerbaijanGP", tags)
         self.assertIn("#BristolTN", tags)
         self.assertIn("#BakuCityCircuit", tags)
+
+
+@unittest.skipUnless(HAS_PILLOW, "the card needs Pillow")
+class HandPickedPostTests(unittest.TestCase):
+    """A post chosen by hand runs through the same guards as the daily one.
+
+    The first version of `--event` reached publishing without checking whether
+    the day already had a post. Dispatched twice, it would have put a second
+    picture on the account and only then hit the unique index meant to stop it -
+    public post, unrecordable row.
+    """
+
+    def publish(self, repo, force=False):
+        from contextlib import ExitStack
+
+        from social.selection import Candidate
+
+        candidate = Candidate("weekend_preview", (f1_weekend(),), None, 0)
+        with ExitStack() as stack:
+            repo.install(stack)
+            publisher = mock.Mock(return_value="17841_9")
+            stack.enter_context(mock.patch.object(pipeline.instagram, "publish", publisher))
+            stack.enter_context(mock.patch.object(
+                pipeline.instagram, "current",
+                return_value=pipeline.instagram.Credentials("t", "me", None),
+            ))
+            result = pipeline.publish_candidate(
+                object(), noon(2026, 9, 24), candidate,
+                dry_run=False, site_url="https://example.test", force=force,
+            )
+        return result, publisher
+
+    def test_a_day_already_covered_is_left_alone(self):
+        repo = FakeRepository(published_days={noon(2026, 9, 24).date()})
+        result, publisher = self.publish(repo)
+        self.assertEqual(result.outcome, "skipped")
+        publisher.assert_not_called()
+        self.assertEqual(repo.rows, [])
+
+    def test_force_still_overrides(self):
+        repo = FakeRepository(published_days={noon(2026, 9, 24).date()})
+        result, publisher = self.publish(repo, force=True)
+        self.assertEqual(result.outcome, "published")
+        publisher.assert_called_once()
+
+    def test_an_open_day_publishes(self):
+        repo = FakeRepository()
+        result, _ = self.publish(repo)
+        self.assertEqual(result.outcome, "published")
+        self.assertEqual(result.brief.kind, "weekend_preview")

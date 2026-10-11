@@ -434,6 +434,7 @@ def main(argv: list[str] | None = None) -> int:
                 dry_run=not args.publish,
                 site_url=args.site_url,
                 timezone_name=args.timezone,
+                force=args.force,
             )
         else:
             result = run_pipeline(

@@ -96,7 +96,7 @@ def run(
     return publish_candidate(
         connection, now, decision.chosen,
         dry_run=dry_run, site_url=site_url, timezone_name=timezone_name,
-        decision=decision,
+        force=force, decision=decision,
     )
 
 
@@ -108,6 +108,7 @@ def publish_candidate(
     dry_run: bool = True,
     site_url: str = "https://ontrackapp.me",
     timezone_name: str = policy.POSTING_TIMEZONE,
+    force: bool = False,
     decision: Optional[Decision] = None,
 ) -> RunResult:
     """Build and publish one chosen candidate, however it was chosen.
@@ -116,10 +117,19 @@ def publish_candidate(
     `--event`, for a round somebody wants covered now - goes through exactly the
     same brief, card, caption and validation as the daily one. A second path to
     Instagram would be a second set of bugs.
+
+    Including this guard, which the first version of this split left behind in
+    run(): a hand-made post that skipped it would publish a second picture to
+    Instagram and only then hit the unique index that was supposed to prevent
+    exactly that - the post public, the row refusing to record it.
     """
     from zoneinfo import ZoneInfo
 
     today = now.astimezone(ZoneInfo(timezone_name)).date()
+
+    if not dry_run and not force and already_published(connection, today):
+        logger.info("a post has already been published for %s", today)
+        return RunResult("skipped", decision=decision)
 
     # --- assemble the facts -------------------------------------------------
     try:
