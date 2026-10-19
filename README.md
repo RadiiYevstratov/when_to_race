@@ -226,5 +226,3 @@ two seconds per host.
 
 The site states plainly that it is independent and unaffiliated, and names every
 source it draws from.
-
-Fork Test
